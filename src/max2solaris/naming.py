@@ -52,7 +52,9 @@ TEXTURE_SUFFIXES = [
     "normalbump", "normal", "bump", "displacement", "height", "cavity",
     "curvature",
     # transparencia e transmissao
-    "opacity", "alpha", "translucency", "transmission",
+    "opacity", "alpha", "translucency", "transmission", "refraction",
+    # emissao
+    "emissive", "emission",
     # oclusao e felpudo
     "ao", "occlusion", "fuzz", "sheen",
 ]
@@ -71,6 +73,8 @@ SUFFIX_ROLE = {
     "displacement": "displacement", "height": "displacement",
     "opacity": "opacity", "alpha": "opacity",
     "translucency": "translucency", "transmission": "transmission",
+    "refraction": "refraction",
+    "emissive": "emission", "emission": "emission",
     "ao": "ao", "occlusion": "ao",
     "cavity": "cavity", "curvature": "curvature",
     "fuzz": "fuzz", "sheen": "fuzz",
