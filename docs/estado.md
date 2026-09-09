@@ -50,10 +50,34 @@ Solaris.
   em "Task Completed with Error(s)" por um aviso de env var do V-Ray. Não
   confiar no log para saber se deu certo — olhar o arquivo de saída.
 
+## O FBX, medido (2026-09-09)
+
+`tools/probe_fbx.py` importa um FBX num File SOP e reporta o que veio. Rodado
+nos arquivos reais:
+
+| | prims | objetos (`name`) | materiais (`shop_materialpath`) |
+|---|---|---|---|
+| Maxtree Zea mays | 57.834 | 1 | 6 |
+| KitBash Lunar Base | 3.272.924 | 624 | 28 |
+
+**Os nomes de material batem 100% com as partes que o scanner extrai das
+texturas** — 6/6 no Maxtree, 28/28 no KitBash, zero divergências. O bind é
+direto; não há tabela de tradução por biblioteca.
+
+**Separar os assets do arquivo único do KitBash** sai do atributo `name`, que
+traz o caminho da hierarquia (`KB3D_LNB_Antenna_A_grp/..._Main`): primeiro
+componente sem o sufixo `_grp`. Conferido contra as 79 pastas que o Matheus
+já tinha construído — casou 100% da amostra.
+
+O Maxtree cai no mesmo código e dá um asset só. Não há caso especial.
+
+Usamos **File SOP**, não o importador de FBX que cria árvore em `/obj` — é o
+que evita os nulls e transforms que o HDA chamava de "FBX clutter".
+
 ## Próximo passo
 
-1. Abrir a janela no Max e conferir o layout (nunca rodou com UI).
-2. Decidir como marcar variantes: hoje o export não gera `VarA/VarB`. A
-   pergunta é o que numa cena do Max define uma variante — objetos de topo?
-   layers? uma convenção de nome?
-3. Ligar a cópia de texturas quando quisermos que o HDA monte material.
+1. O builder em LOPs: `componentgeometry` (File SOP + split por asset) →
+   material por parte → `componentoutput`.
+2. Abrir a janela no Max e conferir o layout (nunca rodou com UI).
+3. Variantes: hoje o export não gera `VarA/VarB`. O que numa cena do Max
+   define uma variante — objetos de topo? layers? convenção de nome?
