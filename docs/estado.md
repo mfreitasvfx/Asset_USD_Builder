@@ -74,6 +74,30 @@ O Maxtree cai no mesmo código e dá um asset só. Não há caso especial.
 Usamos **File SOP**, não o importador de FBX que cria árvore em `/obj` — é o
 que evita os nulls e transforms que o HDA chamava de "FBX clutter".
 
+## O vídeo do Arcanacom ("Import KitBash using TOPs", 23:14)
+
+Assistido via o skill `/watch`. Três problemas que ele levou um dia para
+resolver, e o que fazemos com cada um:
+
+1. **Separar um FBX em vários assets.** Ele usa `filepattern` TOP → promove o
+   atributo de primitiva `name` para atributo de *work item* → `ropfetch` num
+   ROP FBX que escreve um arquivo por prop. É o mesmo `name` que medimos em
+   `fbx.py`. Diferença: ele partia de 18 FBX de props; nosso KitBash é UM
+   arquivo com as 624 peças, então dá para fatiar direto em SOPs, sem escrever
+   FBX intermediário.
+
+2. **Nome do prim raiz.** Ele monta um attribute wrangle que limpa o sufixo,
+   promove para o **detail attribute `geo_name`**, e o `componentoutput` usa
+   esse detail como nome do prim raiz. É exatamente a correção do
+   `componentoutput1` repetido que eu tinha notado.
+
+3. **Duplicados.** Peças modulares reaparecem em vários FBX do kit, então a
+   asset gallery enche de objeto repetido. Ele resolve depois, editando o
+   SQLite da gallery com o DB Browser. Melhor: detectar antes de construir.
+
+Ele também converte unidades no ROP FBX — o mesmo cuidado que já temos no
+lado do Max (Y-up/cm).
+
 ## Próximo passo
 
 1. O builder em LOPs: `componentgeometry` (File SOP + split por asset) →
