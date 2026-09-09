@@ -18,7 +18,7 @@ out = os.environ.get("MAX2SOLARIS_OUT",
                      r"C:/Users/Matheus/Downloads/MaxToLama/Testes/solaris")
 
 s = Settings(target_dir=out, selection_only=False, one_asset_per_object=False,
-             collect_textures=False)
+             collect_textures=True)
 print("=" * 60)
 print("max2solaris headless -> %s" % out)
 print("=" * 60)

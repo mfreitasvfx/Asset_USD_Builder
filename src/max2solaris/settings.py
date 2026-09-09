@@ -45,8 +45,8 @@ class Settings(object):
         ("fbx_version", "FBX202000", "Versao do FBX"),
         ("ascii", False, "FBX em ASCII"),
 
-        # extras (desligados por padrao -- v1 e' so' export) ------------
-        ("collect_textures", False, "Copiar texturas para a pasta do asset"),
+        # extras --------------------------------------------------------
+        ("collect_textures", True, "Copiar texturas para a pasta do asset"),
         ("write_report", True, "Escrever relatorio .json ao lado"),
     ]
 

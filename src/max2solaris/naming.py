@@ -32,14 +32,47 @@ TEXTURAS
 """
 import re
 
-# Sufixos default do HDA (GetImageTypeList + os parametros *_Extention).
-# A ordem importa em um ponto: 'basecolor'/'albedo'/'diffuse' sao alternativos
-# para a cor base, e o HDA usa o ULTIMO que encontrar.
+# Sufixos de textura reconhecidos.
+#
+# A base sao os defaults do HDA (GetImageTypeList + os parametros
+# *_Extention), mas essa lista sozinha nao cobre as bibliotecas reais: o
+# Maxtree escreve `_glossiness`, e `gloss` nao casa com isso. Cada nome aqui
+# foi conferido contra arquivos de verdade, nao suposto.
+#
+# O casamento e' do mais longo pro mais curto (ver texture_suffix_of), entao
+# 'basecolor' ganha de 'color' e 'glossiness' de 'gloss'.
 TEXTURE_SUFFIXES = [
-    "ao", "basecolor", "diffuse", "albedo", "specular", "metalness",
-    "roughness", "gloss", "bump", "opacity", "normal", "displacement",
-    "translucency", "transmission", "fuzz", "cavity", "curvature",
+    # cor base -- alternativos entre si; o HDA usa o ultimo que encontrar
+    "basecolor", "albedo", "diffuse", "color",
+    # especular / microfacetas
+    "specular", "glossiness", "gloss", "roughness", "rough", "metalness",
+    "metallic",
+    # geometria de superficie
+    "normal", "bump", "displacement", "height", "cavity", "curvature",
+    # transparencia e transmissao
+    "opacity", "alpha", "translucency", "transmission",
+    # oclusao e felpudo
+    "ao", "occlusion", "fuzz", "sheen",
 ]
+
+#: Sufixo real -> papel neutro. E' o que o builder usa; a lista acima e' so'
+#: reconhecimento. Manter separado evita que "achamos o arquivo" e "sabemos
+#: o que ele e'" virem a mesma decisao.
+SUFFIX_ROLE = {
+    "basecolor": "basecolor", "albedo": "basecolor",
+    "diffuse": "basecolor", "color": "basecolor",
+    "glossiness": "glossiness", "gloss": "glossiness",
+    "roughness": "roughness", "rough": "roughness",
+    "metalness": "metalness", "metallic": "metalness",
+    "specular": "specular",
+    "normal": "normal", "bump": "bump",
+    "displacement": "displacement", "height": "displacement",
+    "opacity": "opacity", "alpha": "opacity",
+    "translucency": "translucency", "transmission": "transmission",
+    "ao": "ao", "occlusion": "ao",
+    "cavity": "cavity", "curvature": "curvature",
+    "fuzz": "fuzz", "sheen": "fuzz",
+}
 
 # O gatilho de PLANT. Deliberadamente separado da lista acima: e' a unica
 # string cujo efeito vai alem de virar um mapa.
@@ -132,13 +165,19 @@ def looks_like_plant(filenames):
 
 
 def texture_suffix_of(filename):
-    """Qual sufixo de textura o HDA reconheceria neste nome, se algum.
+    """Qual sufixo de textura este nome tem, se algum.
 
-    Casa do mais longo pro mais curto: 'basecolor' antes de 'color' evitaria
-    um falso positivo se a lista crescer nessa direcao.
+    Do mais longo pro mais curto, senao 'gloss' engoliria 'glossiness' e
+    'color' engoliria 'basecolor'.
     """
     base = str(filename).rsplit("/", 1)[-1].rsplit(".", 1)[0].lower()
     for suf in sorted(TEXTURE_SUFFIXES, key=len, reverse=True):
         if base.endswith("_" + suf) or ("_" + suf + "_") in base:
             return suf
     return None
+
+
+def texture_role(filename):
+    """O papel neutro do mapa ('basecolor', 'normal', ...), ou None."""
+    suf = texture_suffix_of(filename)
+    return SUFFIX_ROLE.get(suf) if suf else None
