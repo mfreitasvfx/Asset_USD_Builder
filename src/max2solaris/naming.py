@@ -47,8 +47,10 @@ TEXTURE_SUFFIXES = [
     # especular / microfacetas
     "specular", "glossiness", "gloss", "roughness", "rough", "metalness",
     "metallic",
-    # geometria de superficie
-    "normal", "bump", "displacement", "height", "cavity", "curvature",
+    # geometria de superficie -- "normalbump" antes de "normal"/"bump":
+    # e' um mapa proprio do Megascans (normal derivada do bump), nao os dois
+    "normalbump", "normal", "bump", "displacement", "height", "cavity",
+    "curvature",
     # transparencia e transmissao
     "opacity", "alpha", "translucency", "transmission",
     # oclusao e felpudo
@@ -65,7 +67,7 @@ SUFFIX_ROLE = {
     "roughness": "roughness", "rough": "roughness",
     "metalness": "metalness", "metallic": "metalness",
     "specular": "specular",
-    "normal": "normal", "bump": "bump",
+    "normal": "normal", "normalbump": "normal_bump", "bump": "bump",
     "displacement": "displacement", "height": "displacement",
     "opacity": "opacity", "alpha": "opacity",
     "translucency": "translucency", "transmission": "transmission",
@@ -73,6 +75,11 @@ SUFFIX_ROLE = {
     "cavity": "cavity", "curvature": "curvature",
     "fuzz": "fuzz", "sheen": "fuzz",
 }
+
+#: Arquivos que NAO sao textura, apesar de estarem no meio delas.
+#: O `preview` importa: o HDA procura um `preview.png` para o thumbnail, e
+#: classifica-lo como mapa faria o builder ligar a foto do asset num shader.
+NON_TEXTURE_TOKENS = ("preview", "thumb", "thumbnail")
 
 # O gatilho de PLANT. Deliberadamente separado da lista acima: e' a unica
 # string cujo efeito vai alem de virar um mapa.
@@ -177,7 +184,15 @@ def texture_suffix_of(filename):
     return None
 
 
+def is_preview(filename):
+    """A imagem de preview do asset -- nao e' textura."""
+    base = str(filename).rsplit("/", 1)[-1].rsplit(".", 1)[0].lower()
+    return any(t in base for t in NON_TEXTURE_TOKENS)
+
+
 def texture_role(filename):
     """O papel neutro do mapa ('basecolor', 'normal', ...), ou None."""
+    if is_preview(filename):
+        return None
     suf = texture_suffix_of(filename)
     return SUFFIX_ROLE.get(suf) if suf else None
