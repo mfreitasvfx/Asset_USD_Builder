@@ -107,6 +107,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     ml.parm("matpathprefix").set("/ASSET/mtl/")
 
     plant = profile.plant_workflow and asset.plant
+    finais = []
 
     # Asset de material UNICO (Megascans): a malha costuma vir com
     # shop_materialpath generico ('default_material'), entao casar por nome
@@ -126,7 +127,17 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             plant=plant, disp_scale=disp_scale)
         res.avisos.extend(avisos)
         res.parts_bound.append(_naming.usd_prim_name(parte))
+        finais.append(node)
     ml.layoutChildren()
+    # lista EXPLICITA: so' o no final de cada parte vira prim Material.
+    # Sem isso o auto-fill publicava tambem o subnet karma e o displacement
+    # soltos, poluindo /ASSET/mtl com prims que nada binda.
+    ml.parm("materials").set(len(finais))
+    for i, node in enumerate(finais, start=1):
+        ml.parm("matnode%d" % i).set(node.name())
+        ml.parm("matpath%d" % i).set(node.name())
+        if ml.parm("assign%d" % i) is not None:
+            ml.parm("assign%d" % i).set(0)
     res.nodes["materiallibrary"] = ml
 
     # -- componentmaterial: bind explicito por parte ----------------------

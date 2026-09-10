@@ -1,26 +1,30 @@
 """Construtores de material por renderer, para dentro de um materiallibrary.
 
-A base e' o par de conversores da Rebelway (KB3D_converter / texture_from_disk)
-que o Matheus forneceu: Karma (MaterialX) e Arnold no MESMO material via um
-no `collect` -- e' assim que "todos os renderizadores" convivem num USD so'.
+Base: os conversores da Rebelway (KB3D_converter / texture_from_disk) --
+Karma (MaterialX) e Arnold no MESMO material via um no `collect`.
+
+ESTRUTURA E NOMES (pedido do Matheus: nomes basicos)
+    <parte>                collect (so' quando ha' mais de um renderer)
+    karma_<parte>          subnet MaterialX, rendercontext 'mtlx'
+        surface            mtlxstandard_surface
+        basecolor, roughness, glossiness, metalness, normal, height,
+        opacity, emission, translucency, refraction   (mtlximage por papel)
+        invert, normal_map, displacement
+    arnold_<parte>         arnold_materialbuilder
+        (mesmos nomes basicos por papel, image/normal_map/range/multiply)
+
+    O contexto 'mtlx' no subnet foi MEDIDO: publica outputs:mtlx:surface +
+    outputs:surface (preview) -- identico ao caminho que ja bindou e
+    escreveu USD. 'kma' publicaria outputs:kma:surface, que so' o Karma le.
 
 DESVIOS CONSCIENTES DA RECEITA REBELWAY
-  * Eles poem roughness/metalness em "ACES/ACEScg" no Arnold. Mapa de DADO
-    nao e' cor: aqui vai "Raw", como os proprios mapas de normal/opacity
-    deles. Se um render A/B mostrar diferenca, e' um toggle num lugar so'.
-  * Glossiness (Maxtree/Megascans antigos): eles nao tratam; aqui inverte
-    (mtlxinvert no Karma, arnold::range 1->0 no Arnold).
-  * Planta (gatilho `translucency`, ideia do Matheus): thin_walled +
-    subsurface com o mapa de translucency como subsurface_color -- o
-    equivalente standard_surface do thin-walled+SSS que fizemos no V-Ray.
-
-Papeis esperados em `maps`: os de naming.SUFFIX_ROLE (basecolor, roughness,
-glossiness, metalness, normal, displacement, opacity, emission, translucency,
-refraction, ao...).
+  * Mapa de dado (roughness/metalness/...) em Raw no Arnold, nao ACEScg.
+  * Glossiness inverte (mtlxinvert / arnold::range 1->0).
+  * Planta: thin_walled + subsurface com o mapa de translucency como
+    subsurface_color -- a regra do Matheus, nos dois renderers.
 """
+import hou
 
-# -- tabelas: papel -> input do standard_surface -------------------------
-# (mesmos nomes nas duas implementacoes, que seguem a spec standard_surface)
 _DIRETO = {
     "basecolor": "base_color",
     "metalness": "metalness",
@@ -29,14 +33,11 @@ _DIRETO = {
     "refraction": "transmission",
     "emission": "emission_color",
 }
-
-# colorspace por papel
-_COR = {"basecolor", "emission"}          # sRGB texture
-# todo o resto e' dado (Raw)
+_COR = {"basecolor", "emission", "translucency"}
 
 
 class _W(object):
-    """Coletor de avisos + set/connect tolerantes (padrao dos outros modulos)."""
+    """Coletor de avisos + set/connect tolerantes."""
 
     def __init__(self):
         self.avisos = []
@@ -68,18 +69,42 @@ class _W(object):
             return False
 
 
-# ==========================================================================
-# Karma / MaterialX
-# ==========================================================================
+def _karma_subnet(parent, nome):
+    """Subnet de material MaterialX com o minimo que faz publicar certo.
+
+    rendercontext 'mtlx' (medido) + forcechildren (receita Rebelway).
+    """
+    sub = parent.createNode("subnet", nome)
+    g = sub.parmTemplateGroup()
+    f = hou.FolderParmTemplate("folder1", "Material Builder",
+                               folder_type=hou.folderType.Collapsible,
+                               tags={"sidefx::shader_isparm": "0"})
+    rc = hou.properties.parmTemplate("vopui", "shader_rendercontextname")
+    rc.setDefaultValue(["mtlx"])
+    f.addParmTemplate(rc)
+    fc = hou.ToggleParmTemplate("shader_forcechildren",
+                                "Force Translation of Children",
+                                default_value=True)
+    fc.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
+    f.addParmTemplate(fc)
+    g.append(f)
+    sub.setParmTemplateGroup(g)
+    sub.setMaterialFlag(True)
+    return sub
+
 
 def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None):
-    """mtlxstandard_surface + mtlximage por mapa. Devolve (surface, disp)."""
+    """Subnet 'karma_<name>' completo. Devolve o subnet."""
     w = w or _W()
-    surf = parent.createNode("mtlxstandard_surface", name + "_mtlx")
+    sub = _karma_subnet(parent, "karma_" + name)
+    out = sub.node("suboutput1")
+    surf = sub.createNode("mtlxstandard_surface", "surface")
+    out.setInput(0, surf, 0)
+    w.set(out, "name1", "surface")
     disp = None
 
     def image(role, path, signature):
-        img = parent.createNode("mtlximage", "%s_%s_km" % (name, role))
+        img = sub.createNode("mtlximage", role)
         w.set(img, "signature", signature)
         w.set(img, "file", path)
         return img
@@ -87,30 +112,31 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None):
     for role, inp in _DIRETO.items():
         if role not in maps:
             continue
-        sig = "color3" if role in _COR else "default"
-        img = image(role, maps[role], sig)
+        img = image(role, maps[role], "color3" if role in _COR else "default")
         w.connect(surf, inp, img, "out")
         if role == "emission":
             w.set(surf, "emission", 1)
 
     if "glossiness" in maps and "roughness" not in maps:
         img = image("glossiness", maps["glossiness"], "default")
-        inv = parent.createNode("mtlxinvert", name + "_gloss2rough_km")
+        inv = sub.createNode("mtlxinvert", "invert")
         w.set(inv, "signature", "float")
         w.connect(inv, "in", img, "out")
         w.connect(surf, "specular_roughness", inv, "out")
 
     if "normal" in maps:
         img = image("normal", maps["normal"], "vector3")
-        nm = parent.createNode("mtlxnormalmap", name + "_nrm_km")
+        nm = sub.createNode("mtlxnormalmap", "normal_map")
         w.connect(nm, "in", img, "out")
         w.connect(surf, "normal", nm, "out")
 
     if "displacement" in maps:
-        img = image("displacement", maps["displacement"], "default")
-        disp = parent.createNode("mtlxdisplacement", name + "_disp_km")
+        img = image("height", maps["displacement"], "default")
+        disp = sub.createNode("mtlxdisplacement", "displacement")
         w.set(disp, "scale", disp_scale)
         w.connect(disp, "displacement", img, "out")
+        out.setInput(1, disp, 0)
+        w.set(out, "name2", "displacement")
 
     if plant and "translucency" in maps:
         img = image("translucency", maps["translucency"], "color3")
@@ -118,37 +144,33 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None):
         w.set(surf, "subsurface", 1.0)
         w.connect(surf, "subsurface_color", img, "out")
 
-    return surf, disp
+    sub.layoutChildren()
+    return sub
 
-
-# ==========================================================================
-# Arnold (HtoA) -- receita Rebelway, com os desvios documentados no topo
-# ==========================================================================
 
 def arnold_available():
-    import hou
     return any("htoa" in x.lower() for x in hou.houdiniPath())
 
 
 def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None):
-    """arnold_materialbuilder completo. Devolve o builder (ou None)."""
+    """arnold_materialbuilder 'arnold_<name>'. Devolve o builder (ou None)."""
     w = w or _W()
     try:
-        ar = parent.createNode("arnold_materialbuilder", name + "_arnold")
+        ar = parent.createNode("arnold_materialbuilder", "arnold_" + name)
     except Exception as e:
         w.warn("arnold_materialbuilder indisponivel: %s" % e)
         return None
 
     out = ar.node("OUT_material")
-    surf = ar.createNode("standard_surface")
+    surf = ar.createNode("standard_surface", "surface")
     out.setInput(0, surf, 0)
 
-    def image(role, path, cor):
-        img = ar.createNode("image", "%s_%s_ar" % (name, role))
+    def image(role, path, cor, single=True):
+        img = ar.createNode("image", role)
         w.set(img, "filename", path)
         w.set(img, "color_family", "Utility")
         w.set(img, "color_space", "sRGB - Texture" if cor else "Raw")
-        if not cor:
+        if not cor and single:
             w.set(img, "single_channel", 1)
         return img
 
@@ -163,24 +185,21 @@ def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None):
 
     if "glossiness" in maps and "roughness" not in maps:
         img = image("glossiness", maps["glossiness"], False)
-        rng = ar.createNode("arnold::range", name + "_gloss2rough_ar")
-        w.set(rng, "output_min", 1.0)   # 1->0: inverte
+        rng = ar.createNode("arnold::range", "invert")
+        w.set(rng, "output_min", 1.0)
         w.set(rng, "output_max", 0.0)
         w.connect(rng, "input", img, "rgba")
         w.connect(surf, "specular_roughness", rng, "r")
 
     if "normal" in maps:
-        img = ar.createNode("image", "%s_normal_ar" % name)
-        w.set(img, "filename", maps["normal"])
-        w.set(img, "color_family", "Utility")
-        w.set(img, "color_space", "Raw")
-        nm = ar.createNode("normal_map")
+        img = image("normal", maps["normal"], False, single=False)
+        nm = ar.createNode("normal_map", "normal_map")
         w.connect(nm, "input", img, "rgba")
         w.connect(surf, "normal", nm, "vector")
 
     if "displacement" in maps:
-        img = image("displacement", maps["displacement"], False)
-        mult = ar.createNode("arnold::multiply", name + "_dispamt_ar")
+        img = image("height", maps["displacement"], False)
+        mult = ar.createNode("arnold::multiply", "displacement_amount")
         for c in ("input2r", "input2g", "input2b"):
             w.set(mult, c, disp_scale)
         w.connect(mult, "input1", img, "rgba")
@@ -197,50 +216,36 @@ def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None):
     return ar
 
 
-# ==========================================================================
-# o material completo: collect juntando os renderers disponiveis
-# ==========================================================================
-
 def build_material(parent, name, maps, renderers=("karma", "arnold"),
                    plant=False, disp_scale=0.01):
-    """Cria o material `name` no materiallibrary `parent`.
+    """Cria o material `name`. Devolve (no_final, avisos).
 
-    Devolve (no_final, avisos). O no final leva o NOME EXATO da parte --
-    e' ele que o componentmaterial referencia, entao o nome e' o contrato.
+    O no final leva o NOME EXATO da parte -- e' o contrato com o
+    componentmaterial e com o shop_materialpath do FBX.
     """
     w = _W()
-    terminais = []      # (node, out_index)
 
     ar = None
     if "arnold" in renderers:
         if arnold_available():
             ar = build_arnold(parent, name, maps, plant, disp_scale, w)
         else:
-            w.warn("HtoA nao esta no HOUDINI_PATH desta sessao; material "
-                   "'%s' sai sem Arnold" % name)
-    if ar is not None:
-        terminais.append((ar, 0))
+            w.warn("HtoA nao esta nesta sessao; '%s' sai sem Arnold" % name)
 
-    km_surf, km_disp = (None, None)
-    if "karma" in renderers:
-        km_surf, km_disp = build_karma(parent, name, maps, plant,
-                                       disp_scale, w)
+    km = build_karma(parent, name, maps, plant, disp_scale, w) \
+        if "karma" in renderers else None
 
-    if not terminais and km_surf is not None:
-        # so' Karma: o proprio surface (e disp) publicam direto
-        if km_disp is None:
-            km_surf.setName(name, unique_name=True)
-            return km_surf, w.avisos
+    if ar is None and km is not None:
+        km.setName(name, unique_name=True)
+        return km, w.avisos
 
     col = parent.createNode("collect", name)
     i = 0
-    for node, outidx in terminais:
-        col.setInput(i, node, outidx)
+    if ar is not None:
+        col.setInput(i, ar, 0)
         i += 1
-    if km_surf is not None:
-        col.setInput(i, km_surf, 0)
-        i += 1
-    if km_disp is not None:
-        col.setInput(i, km_disp, 0)
-        i += 1
+    if km is not None:
+        for oidx in range(len(km.outputNames())):
+            col.setInput(i, km, oidx)
+            i += 1
     return col, w.avisos
