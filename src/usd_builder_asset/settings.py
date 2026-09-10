@@ -13,7 +13,7 @@ import os
 
 # Onde as preferencias ficam entre sessoes do Max.
 PREFS_PATH = os.path.join(
-    os.path.expanduser("~"), ".max2solaris", "prefs.json")
+    os.path.expanduser("~"), ".usd_builder_asset", "prefs.json")
 
 
 class Settings(object):

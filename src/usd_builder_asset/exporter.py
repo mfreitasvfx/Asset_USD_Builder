@@ -158,7 +158,7 @@ def export(settings):
 
     if s.write_report:
         for caminho in escritos:
-            rel = os.path.join(os.path.dirname(caminho), "_max2solaris.json")
+            rel = os.path.join(os.path.dirname(caminho), "_usd_builder_asset.json")
             try:
                 with open(rel, "w", encoding="utf-8") as fh:
                     json.dump(resultado, fh, indent=1, ensure_ascii=False)

@@ -1,14 +1,19 @@
-# max2solaris
+# USD_Builder_Asset
 
-Exporta do **3ds Max** no padrão que o HDA `Asset_USD_Builder` (Solaris)
-consome. Só o lado do Max — a construção do USD continua sendo do HDA.
+Importa bibliotecas (Maxtree, Megascans, KitBash) para **USD no Solaris**,
+com um material por parte contendo um shader por renderer (Karma, Arnold,
+RenderMan, V-Ray) num `collect` — mais o exportador do lado do 3ds Max.
 
 ## Instalar
 
-Nada a instalar. No Listener do Max:
+**No Houdini**: copie `install/usd_builder_asset.shelf` (e o `.svg`) para
+`Documents/houdini21.0/toolbar/` e ative a shelf **USD_Builder** no "+" da
+barra. O botão abre a janela e recarrega os módulos a cada clique.
+
+**No 3ds Max** (lado do export), no Listener:
 
 ```
-fileIn @"C:\dev\max2solaris\install\max2solaris.ms"
+fileIn @"C:\dev\USD_Builder_Asset\install\usd_builder_asset.ms"
 ```
 
 Abre a janela. O script recarrega os módulos a cada execução, então dá para
@@ -76,7 +81,7 @@ não existe, a ferramenta avisa em vez de fingir.
 ## O padrão que ele produz
 
 Lido do PythonModule do HDA, não suposto — as referências estão em
-[`naming.py`](src/max2solaris/naming.py).
+[`naming.py`](src/usd_builder_asset/naming.py).
 
 ```
 <destino>/
@@ -109,10 +114,10 @@ A janela não contém regra nenhuma — ela lê e escreve um `Settings` e chama
 `exporter.export`. Por isso o export é testável sem clicar:
 
 ```bash
-"C:/Program Files/Autodesk/3ds Max 2027/3dsmaxbatch.exe" C:/dev/max2solaris/tools/headless_export.py -sceneFile "C:/.../asset.max"
+"C:/Program Files/Autodesk/3ds Max 2027/3dsmaxbatch.exe" C:/dev/USD_Builder_Asset/tools/headless_export.py -sceneFile "C:/.../asset.max"
 ```
 
 O `3dsmaxbatch` não captura o stdout do Python, então o relatório aparece no
-`_max2solaris.json` ao lado do FBX, não no log. E o log termina em
+`_usd_builder_asset.json` ao lado do FBX, não no log. E o log termina em
 "Task Completed with Error(s)" por causa de um aviso de variável de ambiente
 do V-Ray — não é o export.

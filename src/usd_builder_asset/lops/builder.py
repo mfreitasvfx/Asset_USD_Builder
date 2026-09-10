@@ -353,7 +353,7 @@ def _subset_names(cg, res):
 
 def list_assets_in_file(geo_path):
     """Os assets dentro de um arquivo (KitBash). Le num SOP temporario."""
-    obj = hou.node("/obj").createNode("geo", "m2s_scan")
+    obj = hou.node("/obj").createNode("geo", "usdba_scan")
     try:
         f = obj.createNode("file")
         f.parm("file").set(str(geo_path).replace("\\", "/"))
@@ -377,7 +377,7 @@ def cache_bgeo(geo_path, cache_dir):
     alvo = os.path.join(cache_dir, base + ".bgeo.sc").replace(chr(92), "/")
     if os.path.isfile(alvo):
         return alvo
-    obj = hou.node("/obj").createNode("geo", "m2s_cache")
+    obj = hou.node("/obj").createNode("geo", "usdba_cache")
     try:
         f = obj.createNode("file")
         f.parm("file").set(str(geo_path).replace(chr(92), "/"))

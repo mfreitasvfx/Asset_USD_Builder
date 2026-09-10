@@ -9,10 +9,10 @@ clicar em nada -- a janela nao pode ser o unico jeito de rodar.
 import os
 import sys
 
-sys.path.insert(0, r"C:/dev/max2solaris/src")
+sys.path.insert(0, r"C:/dev/USD_Builder_Asset/src")
 
-from max2solaris.settings import Settings          # noqa: E402
-from max2solaris import exporter                   # noqa: E402
+from usd_builder_asset.settings import Settings          # noqa: E402
+from usd_builder_asset import exporter                   # noqa: E402
 
 out = os.environ.get("MAX2SOLARIS_OUT",
                      r"C:/Users/Matheus/Downloads/MaxToLama/Testes/solaris")
@@ -20,7 +20,7 @@ out = os.environ.get("MAX2SOLARIS_OUT",
 s = Settings(target_dir=out, selection_only=False, one_asset_per_object=False,
              collect_textures=True)
 print("=" * 60)
-print("max2solaris headless -> %s" % out)
+print("usd_builder_asset headless -> %s" % out)
 print("=" * 60)
 try:
     res = exporter.export(s)

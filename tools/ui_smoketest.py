@@ -16,7 +16,7 @@ import os
 import sys
 import traceback
 
-sys.path.insert(0, r"C:/dev/max2solaris/src")
+sys.path.insert(0, r"C:/dev/USD_Builder_Asset/src")
 
 RESULT = os.environ.get(
     "MAX2SOLARIS_SMOKE",
@@ -50,8 +50,8 @@ def main():
     if app is None:
         return
 
-    win_mod = passo("importar max2solaris.ui.window",
-                    lambda: __import__("max2solaris.ui.window",
+    win_mod = passo("importar usd_builder_asset.ui.window",
+                    lambda: __import__("usd_builder_asset.ui.window",
                                        fromlist=["window"]))
     if win_mod is None:
         return

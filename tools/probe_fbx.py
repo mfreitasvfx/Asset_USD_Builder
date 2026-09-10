@@ -17,8 +17,8 @@ import sys
 
 import hou
 
-sys.path.insert(0, r"C:/dev/max2solaris/src")
-from max2solaris import library  # noqa: E402
+sys.path.insert(0, r"C:/dev/USD_Builder_Asset/src")
+from usd_builder_asset import library  # noqa: E402
 
 
 def sop_import(caminho):

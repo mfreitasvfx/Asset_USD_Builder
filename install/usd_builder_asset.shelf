@@ -9,10 +9,10 @@
 -->
 <shelfDocument>
   <tool name="usd_builder_asset" label="USD_Builder_Asset"
-        icon="C:/dev/max2solaris/install/usd_builder_asset.svg">
-    <helpText><![CDATA[Abre a janela do USD_Builder_Asset (max2solaris):
+        icon="C:/dev/USD_Builder_Asset/install/usd_builder_asset.svg">
+    <helpText><![CDATA[Abre a janela do USD_Builder_Asset :
 1 - SCAN, 2 - BUILD ASSETS, 3 - EXPORT USD's.]]></helpText>
-    <script scriptType="python"><![CDATA[exec(open(r"C:\dev\max2solaris\install\houdini_reload.py").read())]]></script>
+    <script scriptType="python"><![CDATA[exec(open(r"C:\dev\USD_Builder_Asset\install\houdini_reload.py").read())]]></script>
   </tool>
 
   <toolshelf name="usd_builder" label="USD_Builder">

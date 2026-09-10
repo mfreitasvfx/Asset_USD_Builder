@@ -80,10 +80,17 @@ class Asset(object):
         self.plant = False
         self.built = False        # ja e' saida do Component Builder
         self.geometry = {}        # lod -> caminho
+        self.geo_files = []       # TODOS os arquivos de geometria achados
         self.parts = {}           # parte -> {papel: caminho}
         self.preview = None
         self.meta = {}
         self.avisos = []
+
+    @property
+    def multi_fbx(self):
+        """Set multi-arquivo (Post Apocalypse): varios FBX sem token de LOD
+        dividindo UM atlas. Cada arquivo carrega seus proprios assets."""
+        return len(self.geo_files) > 1 and len(self.geometry) <= 1
 
     @property
     def lods(self):
@@ -182,6 +189,43 @@ def _arquivos(root, profundidade=2):
     return achados
 
 
+def _coleta_imagem(a, nome, cheio, avisar=True):
+    if naming.is_preview(nome):
+        a.preview = a.preview or cheio
+        return
+    papel = naming.texture_role(nome)
+    if papel is None:
+        if avisar:
+            a.avisos.append("mapa nao reconhecido: %s" % nome)
+        return
+    parte = _part_name(nome)
+    mapas = a.parts.setdefault(parte, {})
+    anterior = mapas.get(papel)
+    if anterior is None or _PESO_IMG.get(_ext(cheio), 0) > \
+            _PESO_IMG.get(_ext(anterior), 0):
+        mapas[papel] = cheio
+
+
+def _sobe_por_texturas(a, niveis=3):
+    """Aponta-se <set>/FBX/FBX e as texturas moram em <set>/Textures
+    (Post Apocalypse). Sobe ate `niveis` pais atras de mapas reconheciveis
+    -- sem aviso por arquivo, porque na subida aparece de tudo (Icon.jpg,
+    Title_*.jpg) e so' interessa o que casa com papel de textura."""
+    pai = a.root
+    for _ in range(niveis):
+        novo = os.path.dirname(pai)
+        if not novo or novo == pai or len(novo) <= 3:
+            return
+        pai = novo
+        for nome, cheio in _arquivos(pai, profundidade=2):
+            if nome.lower().endswith(_IMG_EXT):
+                _coleta_imagem(a, nome, cheio, avisar=False)
+        if a.parts:
+            a.avisos.append("texturas achadas subindo a arvore: %s"
+                            % pai.replace("\\", "/"))
+            return
+
+
 def scan(root):
     """Le a pasta e devolve um Asset."""
     a = Asset(root)
@@ -200,6 +244,7 @@ def scan(root):
         if low.endswith(_GEO_EXT):
             if a.built and low in (_LAYERS_COMPONENT | _LAYERS_OPCIONAIS):
                 continue          # camada, nao geometria alternativa
+            a.geo_files.append(cheio)
             lod = naming.parse_lod(nome) or naming.DEFAULT_LOD
             atual = geo_por_lod.get(lod)
             # .fbx e .obj do mesmo asset nao sao conflito: sao formatos do
@@ -210,19 +255,7 @@ def scan(root):
             continue
 
         if low.endswith(_IMG_EXT):
-            if naming.is_preview(nome):
-                a.preview = a.preview or cheio
-                continue
-            papel = naming.texture_role(nome)
-            if papel is None:
-                a.avisos.append("mapa nao reconhecido: %s" % nome)
-                continue
-            parte = _part_name(nome)
-            mapas = a.parts.setdefault(parte, {})
-            anterior = mapas.get(papel)
-            if anterior is None or _PESO_IMG.get(_ext(cheio), 0) > \
-                    _PESO_IMG.get(_ext(anterior), 0):
-                mapas[papel] = cheio
+            _coleta_imagem(a, nome, cheio)
             continue
 
         if low.endswith(".json"):
@@ -235,8 +268,12 @@ def scan(root):
                 pass
 
     a.geometry = geo_por_lod
+    a.geo_files.sort()
     a.plant = naming.looks_like_plant([n for n, _c in arquivos])
     a.library = classify([n for n, _c in arquivos])
+
+    if a.geometry and not a.parts and not a.built:
+        _sobe_por_texturas(a)
 
     if not a.geometry:
         a.avisos.append("nenhuma geometria na pasta")
@@ -244,6 +281,43 @@ def scan(root):
         a.avisos.append("nenhuma textura reconhecida -- nao ha com que montar "
                         "material")
     return a
+
+
+def atlas_material(asset, variant="dark"):
+    """Junta o jogo de mapas UNICO de um set com atlas compartilhado.
+
+    O scanner fragmenta 'X_color_dark'/'X_color_light' em partes separadas
+    e deixa os mapas de dado na parte base. Aqui: basecolor da variante
+    pedida + todos os mapas de dado. (Era do batch_kitbash; a janela
+    precisa do mesmo, entao mora na library.)
+    """
+    mapas = {}
+    basecolor = None
+    for parte, m in asset.parts.items():
+        low = parte.lower()
+        if low.endswith("_" + variant) and "basecolor" in m:
+            basecolor = m["basecolor"]
+            continue
+        if low.endswith("_dark") or low.endswith("_light"):
+            continue                       # a outra variante
+        mapas.update(m)
+    if basecolor:
+        mapas["basecolor"] = basecolor
+    nome = "%s_%s" % (asset.name, variant)
+    return nome, mapas
+
+
+def atlas_variants(asset):
+    """[(variante, {nome: mapas})] quando o atlas tem dark/light; None se
+    nao ha variantes (ai o material e' um so', via atlas_material)."""
+    tem = [v for v in ("dark", "light")
+           if any(p.lower().endswith("_" + v) for p in asset.parts)]
+    out = []
+    for v in tem:
+        nome, mapas = atlas_material(asset, v)
+        if mapas:
+            out.append((v, {nome: mapas}))
+    return out or None
 
 
 def classify(arquivos):

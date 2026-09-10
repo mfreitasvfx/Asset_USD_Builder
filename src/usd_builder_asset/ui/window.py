@@ -1,4 +1,4 @@
-"""Janela do max2solaris (PySide6, o binding que o 3ds Max 2027 traz).
+"""Janela do usd_builder_asset (PySide6, o binding que o 3ds Max 2027 traz).
 
 A janela nao contem regra nenhuma: ela le e escreve um `Settings` e chama
 `exporter.export`. E' o que permite testar o export inteiro pelo 3dsmaxbatch,
@@ -11,7 +11,7 @@ from PySide6 import QtCore, QtWidgets
 from ..settings import Settings
 from .. import exporter
 
-TITULO = "max2solaris  —  export para o Asset_USD_Builder"
+TITULO = "usd_builder_asset  —  export para o Asset_USD_Builder"
 
 
 def _max_main_window():

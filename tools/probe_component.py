@@ -17,7 +17,7 @@ import hou
 
 SAIDA = os.environ.get(
     "PROBE_OUT",
-    r"C:/dev/max2solaris/tools/component_schema.json")
+    r"C:/dev/USD_Builder_Asset/tools/component_schema.json")
 
 res = {"houdini": hou.applicationVersionString()}
 

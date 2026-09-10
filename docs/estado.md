@@ -1,4 +1,4 @@
-# Estado — max2solaris
+# Estado — USD_Builder_Asset
 
 Atualizado: 2026-09-10 (noite)
 
@@ -100,7 +100,7 @@ lado do Max (Y-up/cm).
 
 ## O builder em LOPs (2026-09-09, fim do dia)
 
-`src/max2solaris/lops/` monta o componente: `componentgeometry` (File SOP +
+`src/usd_builder_asset/lops/` monta o componente: `componentgeometry` (File SOP +
 partição por `shop_materialpath`, subsets sem prefixo) → `componentmaterial`
 (materiallibrary em `/ASSET/mtl/`, bind explícito por parte) →
 `componentoutput` (rootprim = nome do asset, sanitizado).
@@ -255,7 +255,7 @@ Mais três problemas do teste dele, todos medidos e consertados:
    assets, 0 falhas.
 
 Pedidos do Matheus atendidos no mesmo passe:
-- Nó renomeado: subnet `USD_Builder_Asset_<asset>` (era m2s_*).
+- Nó renomeado: subnet `USD_Builder_Asset_<asset>` (era usdba_*).
 - Janela com ETAPAS numeradas como o HDA do Carlo: 1 SCAN, 2 BUILD ASSETS
   (monta a rede SEM escrever — dá para abrir o subnet e alterar), 3 EXPORT
   USD's (executa os componentoutput). "chegar e alterar caso for preciso".
@@ -265,6 +265,32 @@ Pedidos do Matheus atendidos no mesmo passe:
   normal_map.strength / pxrnormalmap.bumpScale), SubSurface (peso do sss
   nas plantas), Remap Displacement (mtlxremap / arnold::range) — em
   `materials.DEFAULTS`, threading via `settings=` até os builders.
+
+## Rename total + feedback do teste do Matheus (2026-09-10, mais tarde)
+
+O Matheus testou de verdade (render V-Ray no viewport OK!) e pediu:
+
+1. **"não teremos mais esse nome em nada"**: rename completo
+   max2solaris → **USD_Builder_Asset**. Pasta `C:\dev\USD_Builder_Asset`,
+   pacote Python `usd_builder_asset`, janela, shelf, prefixos de nó
+   (usdba_*). ATENÇÃO ao retomar: `C:\dev\max2solaris` não existe mais.
+2. **Log no console do Houdini igual ao Asset_USD_Builder**: `log.py`
+   (banners, checkmarks, BuildTime) e o `_diz` da janela espelha no
+   stdout. START/FINISHED SCANNING/BUILDING/EXPORTING.
+3. **"não localizou os arquivos"**: ele apontou `<set>/FBX/FBX`; as
+   texturas moram em `<set>/Textures`. `_sobe_por_texturas()`: com
+   geometria e sem textura, sobe até 3 níveis coletando mapas
+   reconhecíveis (calado sobre Icon.jpg/Title_*.jpg da subida). Junto:
+   `Asset.geo_files` + `multi_fbx` (vários FBX sem LOD = Post
+   Apocalypse), `atlas_material`/`atlas_variants` moveram do batch para a
+   library, e a JANELA ganhou o modo multi-FBX: a lista mostra os
+   arquivos, o Build abre cada um e monta os assets de dentro com as
+   variantes do atlas. Medido: scan no FBX/FBX acha 64 arquivos + atlas
+   dark/light; build etapa 2 não escreve; etapa 3 escreve (8 s).
+
+Checkboxes proxy/simproxy na janela (Branches). O Matheus quer rodar o
+export completo ELE MESMO pelo script para caçar erros — não disparar
+lote por ele.
 
 ## Próximo passo
 

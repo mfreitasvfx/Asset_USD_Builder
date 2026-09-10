@@ -24,34 +24,15 @@ import os
 import re
 import sys
 
-sys.path.insert(0, r"C:/dev/max2solaris/src")
+sys.path.insert(0, r"C:/dev/USD_Builder_Asset/src")
 
 import hou                                            # noqa: E402
-from max2solaris import library, profiles             # noqa: E402
-from max2solaris.lops import builder                  # noqa: E402
+from usd_builder_asset import library, profiles             # noqa: E402
+from usd_builder_asset.lops import builder                  # noqa: E402
 
 
-def atlas_material(asset, variant="dark"):
-    """Monta o jogo de mapas unico a partir do que o scan achou no set.
-
-    O scanner fragmenta 'X_color_dark'/'X_color_light' em partes separadas
-    (dark/light) e deixa os mapas de dado na parte base. Aqui juntamos:
-    basecolor da variante pedida + todos os mapas de dado.
-    """
-    mapas = {}
-    basecolor = None
-    for parte, m in asset.parts.items():
-        low = parte.lower()
-        if low.endswith("_" + variant) and "basecolor" in m:
-            basecolor = m["basecolor"]
-            continue
-        if low.endswith("_dark") or low.endswith("_light"):
-            continue                       # a outra variante
-        mapas.update(m)
-    if basecolor:
-        mapas["basecolor"] = basecolor
-    nome = "%s_%s" % (asset.name, variant)
-    return nome, mapas
+# a logica do atlas mora na library (a janela usa a mesma)
+atlas_material = library.atlas_material
 
 
 def natural(p):
