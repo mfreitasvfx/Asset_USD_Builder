@@ -55,7 +55,7 @@ class Result(object):
 
 
 def build_asset(asset, profile, out_dir=None, asset_name=None,
-                renderers=("karma", "arnold"), parent=None,
+                renderers=("karma", "arnold", "renderman", "vray"), parent=None,
                 lod=None, write=True, disp_scale=0.01):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 

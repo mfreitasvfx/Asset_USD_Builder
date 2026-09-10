@@ -46,7 +46,7 @@ def main():
         return 0
 
     res = builder.build_asset(a, p, out_dir=out, asset_name=obj,
-                              renderers=("karma", "arnold"))
+                              renderers=("karma", "arnold", "renderman", "vray"))
     print(res.resumo())
     return 1 if (res.usd_path and not os.path.isfile(res.usd_path)) else 0
 

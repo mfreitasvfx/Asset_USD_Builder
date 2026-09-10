@@ -176,10 +176,28 @@ asset saía 100× maior. É o "convert the units" do vídeo do Arcanacom.
 Desvios documentados do template: proxy por polyreduce (não VDB→remesh) e
 simproxy de hull único (não por peça via foreach). Trocar se precisar.
 
+## RenderMan + V-Ray no collect, e a janela (2026-09-10)
+
+`lops/mat_extra.py`: **PxrSurface** (a receita do Asset_USD_Builder, sem o
+.tex — inclusive a fidelidade de deixar metalness desconectado, porque
+PxrSurface não tem input de metallic; metal fiel vem com LAMA depois) e
+**VRayMtl** (a tabela medida no max2lama: option_use_roughness, bump_type
+'1', enums string; displacement fica fora — no V-Ray é da geometria).
+
+Antenna_A agora publica num material só:
+`arnold:surface+displacement`, `mtlx:surface+displacement`,
+`ri:surface+displacement`, `vray:surface`, `surface` (preview).
+
+**Janela** (`ui/houdini_panel.py`, PySide6 com fallback PySide2): pasta →
+Scan → lista de objetos (KitBash, com filtro e multi-select) → renderers →
+Build. Recarrega os módulos a cada Scan/Build — editar no VS Code e clicar
+de novo, sem reiniciar o Houdini. `install/houdini_reload.py` abre a janela.
+Smoke-test offscreen no hython cobre a construção da UI (34 widgets, scan
+do Maxtree ok); o clique real é do Matheus.
+
 ## Próximo passo
 
-1. O builder em LOPs: `componentgeometry` (File SOP + split por asset) →
-   material por parte → `componentoutput`.
-2. Abrir a janela no Max e conferir o layout (nunca rodou com UI).
-3. Variantes: hoje o export não gera `VarA/VarB`. O que numa cena do Max
-   define uma variante — objetos de topo? layers? convenção de nome?
+1. O lote dos 79 do KitBash (loop hython ou TOPs).
+2. Duplicados entre kits (detectar no scan, antes de construir).
+3. LAMA como quinto renderer do collect (receitas prontas no max2lama).
+4. Lado Max: janela nunca aberta na UI; variantes VarA/VarB por definir.

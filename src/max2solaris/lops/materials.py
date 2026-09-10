@@ -235,15 +235,33 @@ def build_material(parent, name, maps, renderers=("karma", "arnold"),
     km = build_karma(parent, name, maps, plant, disp_scale, w) \
         if "karma" in renderers else None
 
-    if ar is None and km is not None:
+    from . import mat_extra
+    rman = None
+    if "renderman" in renderers:
+        if mat_extra.renderman_available():
+            rman = mat_extra.build_renderman(parent, name, maps, plant,
+                                             disp_scale, w)
+        else:
+            w.warn("RenderMan nao esta nesta sessao; '%s' sai sem" % name)
+    vr = None
+    if "vray" in renderers:
+        if mat_extra.vray_available():
+            vr = mat_extra.build_vray(parent, name, maps, plant,
+                                      disp_scale, w)
+        else:
+            w.warn("V-Ray nao esta nesta sessao; '%s' sai sem" % name)
+
+    extras = [n for n in (ar, rman, vr) if n is not None]
+    if not extras and km is not None:
         km.setName(name, unique_name=True)
         return km, w.avisos
 
     col = parent.createNode("collect", name)
     i = 0
-    if ar is not None:
-        col.setInput(i, ar, 0)
-        i += 1
+    for n in extras:
+        for oidx in range(len(n.outputNames())):
+            col.setInput(i, n, oidx)
+            i += 1
     if km is not None:
         for oidx in range(len(km.outputNames())):
             col.setInput(i, km, oidx)
