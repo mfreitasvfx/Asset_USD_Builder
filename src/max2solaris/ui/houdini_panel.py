@@ -1,10 +1,15 @@
-"""Janela do max2solaris dentro do Houdini.
+"""Janela do USD_Builder_Asset (max2solaris) dentro do Houdini.
 
     import sys; sys.path.insert(0, r"C:/dev/max2solaris/src")
     from max2solaris.ui import houdini_panel
     houdini_panel.show()
 
-Fluxo: escolher a pasta -> Scan -> (KitBash: marcar objetos) -> Build.
+Etapas numeradas, como no Asset_USD_Builder do Carlo:
+    1 - SCAN          le a pasta e lista os objetos (KitBash)
+    2 - BUILD ASSETS  monta a rede em /stage SEM escrever -- da' para
+                      abrir o subnet USD_Builder_Asset_* e alterar antes
+    3 - EXPORT USD's  aperta o execute dos componentoutput montados
+
 A janela nao contem regra nenhuma: scanner/perfis/builder fazem o trabalho,
 entao tudo que ela faz tambem roda headless via tools/build_lops.py.
 """
@@ -18,7 +23,7 @@ except ImportError:                             # 20.5 e anteriores
 
 import hou
 
-TITULO = "max2solaris — importar biblioteca para USD"
+TITULO = "USD_Builder_Asset — max2solaris"
 RENDERERS = ("karma", "arnold", "renderman", "vray")
 
 
@@ -42,9 +47,10 @@ class Panel(QtWidgets.QWidget):
         super(Panel, self).__init__(parent)
         self.setWindowFlag(QtCore.Qt.Window, True)
         self.setWindowTitle(TITULO)
-        self.resize(560, 640)
+        self.resize(560, 720)
         self._asset = None
         self._profile = None
+        self._builds = []          # Results da etapa 2, para a etapa 3
         self._montar()
 
     # ------------------------------------------------------------------
@@ -65,7 +71,7 @@ class Panel(QtWidgets.QWidget):
         wrap = QtWidgets.QWidget()
         wrap.setLayout(linha)
         fF.addRow("Pasta do asset", wrap)
-        self.btScan = QtWidgets.QPushButton("Scan")
+        self.btScan = QtWidgets.QPushButton("1 — SCAN")
         self.btScan.clicked.connect(self._scan)
         fF.addRow(self.btScan)
         self.lbResumo = QtWidgets.QLabel("—")
@@ -112,16 +118,46 @@ class Panel(QtWidgets.QWidget):
         wrap2.setLayout(linha2)
         fR.addRow("Pasta de saida", wrap2)
 
-        self.ckWrite = QtWidgets.QCheckBox(
-            "Escrever USD (desmarcado: so' monta a rede p/ inspecionar)")
-        self.ckWrite.setChecked(True)
-        fR.addRow(self.ckWrite)
+        self.ckTexShared = QtWidgets.QCheckBox(
+            "Texturas compartilhadas (UMA copia em <saida>/textures)")
+        self.ckTexShared.setChecked(True)
+        fR.addRow(self.ckTexShared)
         raiz.addWidget(gR)
 
-        self.btBuild = QtWidgets.QPushButton("Build")
+        # settings do Asset_USD_Builder (aba IMG SETTINGS)
+        gS = QtWidgets.QGroupBox("Settings")
+        fS = QtWidgets.QFormLayout(gS)
+
+        def spin(valor, passo=0.01, dec=4):
+            sp = QtWidgets.QDoubleSpinBox()
+            sp.setDecimals(dec)
+            sp.setRange(0.0, 100.0)
+            sp.setSingleStep(passo)
+            sp.setValue(valor)
+            return sp
+
+        self.spDisp = spin(0.01)
+        self.spGamma = spin(1.0)
+        self.spNormal = spin(1.0)
+        self.spSss = spin(1.0)
+        fS.addRow("Displacement Scale", self.spDisp)
+        fS.addRow("BaseColor Gamma", self.spGamma)
+        fS.addRow("Normal Scale", self.spNormal)
+        fS.addRow("SubSurface", self.spSss)
+        raiz.addWidget(gS)
+
+        linha3 = QtWidgets.QHBoxLayout()
+        self.btBuild = QtWidgets.QPushButton("2 — BUILD ASSETS")
         self.btBuild.setMinimumHeight(34)
         self.btBuild.clicked.connect(self._build)
-        raiz.addWidget(self.btBuild)
+        linha3.addWidget(self.btBuild)
+        self.btExport = QtWidgets.QPushButton("3 — EXPORT USD's")
+        self.btExport.setMinimumHeight(34)
+        self.btExport.clicked.connect(self._export)
+        linha3.addWidget(self.btExport)
+        wrap3 = QtWidgets.QWidget()
+        wrap3.setLayout(linha3)
+        raiz.addWidget(wrap3)
 
         self.log = QtWidgets.QPlainTextEdit()
         self.log.setReadOnly(True)
@@ -179,8 +215,13 @@ class Panel(QtWidgets.QWidget):
                       % self._profile.label)
 
     def _build(self):
+        """Etapa 2: monta a rede em /stage SEM escrever.
+
+        Da' para abrir o subnet USD_Builder_Asset_* e mexer no que quiser
+        antes do export -- o pedido do Matheus: 'chegar e alterar'.
+        """
         if self._asset is None:
-            self._diz("faca o Scan primeiro.")
+            self._diz("faca o 1 — SCAN primeiro.")
             return
         _reload_core()
         from max2solaris import library, profiles
@@ -191,7 +232,12 @@ class Panel(QtWidgets.QWidget):
 
         renderers = tuple(r for r, ck in self.cks.items() if ck.isChecked())
         out = self.edSaida.text().strip() or None
-        write = self.ckWrite.isChecked()
+        tex_dir = None
+        if out and self.ckTexShared.isChecked():
+            tex_dir = out.rstrip("/") + "/textures"
+        settings = {"basecolor_gamma": self.spGamma.value(),
+                    "normal_scale": self.spNormal.value(),
+                    "subsurface": self.spSss.value()}
 
         alvos = [None]
         if self._profile.asset_grain == "object":
@@ -200,7 +246,8 @@ class Panel(QtWidgets.QWidget):
                 self._diz("selecione ao menos um objeto da lista.")
                 return
 
-        with hou.InterruptableOperation("max2solaris build",
+        self._builds = []
+        with hou.InterruptableOperation("USD_Builder_Asset build",
                                         open_interrupt_dialog=True) as op:
             for i, alvo in enumerate(alvos):
                 op.updateProgress(float(i) / max(1, len(alvos)))
@@ -208,11 +255,37 @@ class Panel(QtWidgets.QWidget):
                 try:
                     res = builder.build_asset(
                         self._asset, self._profile, out_dir=out,
-                        asset_name=alvo, renderers=renderers, write=write)
+                        asset_name=alvo, renderers=renderers, write=False,
+                        tex_dir=tex_dir, disp_scale=self.spDisp.value(),
+                        settings=settings)
+                    self._builds.append(res)
                     self._diz(res.resumo())
                 except Exception:
                     self._diz(traceback.format_exc())
-        self._diz("\npronto.")
+        self._diz("\nrede montada (%d). Confira/altere em /stage e aperte "
+                  "3 — EXPORT USD's." % len(self._builds))
+
+    def _export(self):
+        """Etapa 3: executa os componentoutput montados na etapa 2."""
+        vivos = [r for r in self._builds
+                 if r.nodes.get("componentoutput") is not None]
+        if not vivos:
+            self._diz("nada montado — rode o 2 — BUILD ASSETS antes.")
+            return
+        with hou.InterruptableOperation("USD_Builder_Asset export",
+                                        open_interrupt_dialog=True) as op:
+            for i, res in enumerate(vivos):
+                op.updateProgress(float(i) / max(1, len(vivos)))
+                co = res.nodes["componentoutput"]
+                try:
+                    co.parm("execute").pressButton()
+                    ok = res.usd_path and os.path.isfile(res.usd_path)
+                    self._diz("%s -> %s" % (res.asset_name,
+                                            res.usd_path if ok
+                                            else "NAO escrito"))
+                except Exception:
+                    self._diz(traceback.format_exc())
+        self._diz("\nexport concluido.")
 
 
 _painel = None

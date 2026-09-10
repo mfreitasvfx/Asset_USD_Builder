@@ -41,11 +41,37 @@ um FBX de props com centenas de objetos é convertido para bgeo UMA vez, em
 vez de recarregado por prop.
 
 ```bash
-hython tools/batch_kitbash.py "<raiz do set>" "<saida>" --no-proxy --no-simproxy
+hython tools/batch_kitbash.py "<raiz do set>" "<saida>" --no-proxy --no-simproxy --jobs 4
 ```
 
 Verificado: 388 assets em 3 arquivos, 0 falhas; Building_01 com variantSet
 mtl {dark, light} e outputs vray+mtlx+preview.
+
+### Lições medidas no primeiro teste de verdade
+
+- **V-Ray**: o material via subnet genérico publicava uma forma
+  (NodeGraph → MtlSingleBRDF `outputs:material`) que o delegate do V-Ray
+  não lê — material cinza. A ferramenta agora usa o builder **oficial**
+  (`vray_vop_builder`): `outputs:vray:surface → BRDFVRayMtl.outputs:brdf`
+  direto, a mesma forma que o V-Ray emite sozinho. E mapa de dado
+  (roughness/normal/…) é linear no BitmapBuffer — o default era sRGB em
+  tudo.
+- **Texturas**: o `localize` do componentoutput copia texturas para dentro
+  de CADA asset — num set de atlas único isso deu 119 MB × 819 assets =
+  100 GB. Default do lote agora é `--tex-mode shared`: UMA cópia em
+  `<saida>/textures`, materiais apontando `../textures/…` relativo.
+- **Lote grande**: 800+ redes numa sessão hython = segfault. O lote destrói
+  cada rede depois de escrever (`cleanup`) e `--jobs N` roda N processos
+  hython em paralelo, cada um com uma fatia dos arquivos.
+
+### A janela: etapas numeradas, como o Asset_USD_Builder
+
+`1 — SCAN` lê a pasta e lista os objetos; `2 — BUILD ASSETS` monta a rede
+em `/stage` **sem escrever** — abra o subnet `USD_Builder_Asset_<asset>` e
+altere o que quiser; `3 — EXPORT USD's` executa os componentoutput. Os
+settings do Asset_USD_Builder (Displacement Scale, BaseColor Gamma, Normal
+Scale, SubSurface) valem para todos os renderers onde o parm existe — onde
+não existe, a ferramenta avisa em vez de fingir.
 
 ## O padrão que ele produz
 

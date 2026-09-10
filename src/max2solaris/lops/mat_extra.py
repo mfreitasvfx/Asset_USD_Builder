@@ -16,9 +16,20 @@ V-RAY -- a tabela medida no max2lama, agora no collect:
     No V-Ray do 21.0 `translucency_color` nao aceita mapa (medido); o que
     conecta e' `translucency_amount`.
 
-Os dois publicam via subnet com rendercontext ('ri' / 'vray') -- o mesmo
-mecanismo medido do subnet mtlx: o contexto vira o namespace do output
-(outputs:ri:surface, outputs:vray:surface).
+    MEDIDO (2026-09-10): o subnet generico com rendercontext 'vray'
+    publicava MtlSingleBRDF com terminal `outputs:material` dentro de um
+    NodeGraph -- forma que o delegate Hydra do V-Ray NAO resolve (material
+    cinza no viewport). O builder OFICIAL (`vray_vop_builder`, com o
+    vray_material_output dentro) publica `outputs:surface ->
+    BRDFVRayMtl.outputs:brdf` direto -- a forma que o tradutor do proprio
+    V-Ray emite. Usamos o oficial.
+
+    BitmapBuffer: transfer_function default e' sRGB (3). Mapa de DADO
+    (roughness/normal/metalness/opacity...) precisa ser linear ('0').
+
+RenderMan publica via subnet com rendercontext 'ri' -- o mesmo mecanismo
+medido do subnet mtlx: o contexto vira o namespace do output
+(outputs:ri:surface).
 """
 import hou
 
@@ -51,7 +62,9 @@ def vray_available():
 
 
 def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
-                    w=None):
+                    w=None, settings=None):
+    from .materials import _cfg
+    s = _cfg(settings)
     sub = ctx_subnet(parent, "renderman_" + name, "ri")
     out = sub.node("suboutput1")
     surf = sub.createNode("pxrsurface", "surface")
@@ -107,6 +120,8 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
     if "normal" in maps:
         img = image("normal", maps["normal"], False)
         nm = sub.createNode("pxrnormalmap", "normal_map")
+        if s["normal_scale"] != 1.0:
+            w.set(nm, "bumpScale", s["normal_scale"])
         w.connect(nm, "inputRGB", img, "resultRGB")
         w.connect(surf, "bumpNormal", nm, "resultN")
 
@@ -124,32 +139,43 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
     if plant and "translucency" in maps:
         img = image("translucency", maps["translucency"], True)
         w.connect(surf, "diffuseTransmitColor", img, "resultRGB")
-        w.set(surf, "diffuseTransmitGain", 1.0)
+        w.set(surf, "diffuseTransmitGain", s["subsurface"])
         w.set(surf, "diffuseDoubleSided", 1)
+
+    if s["basecolor_gamma"] != 1.0:
+        w.warn("basecolor_gamma custom nao aplicado em RenderMan "
+               "(PxrTexture ja lineariza); '%s'" % name)
 
     sub.layoutChildren()
     return sub
 
 
-def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None):
-    sub = ctx_subnet(parent, "vray_" + name, "vray")
-    out = sub.node("suboutput1")
+def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
+               settings=None):
+    from .materials import _cfg
+    s = _cfg(settings)
+    # builder OFICIAL do V-Ray: BRDF direto no vray_material_output.
+    # (o subnet generico publicava uma forma que o delegate nao le.)
+    sub = parent.createNode("vray_vop_builder", "vray_" + name)
+    out = sub.node("vrayOutput")
     brdf = sub.createNode("VRayNodeBRDFVRayMtl", "surface")
-    mtl = sub.createNode("VRayNodeMtlSingleBRDF", "material")
-    w.connect(mtl, "brdf", brdf, "brdf")
-    out.setInput(0, mtl, 0)
-    w.set(out, "name1", "surface")
+    out.setInput(0, brdf, 0)              # input 0 = Material
 
-    def tex(role, path):
+    def tex(role, path, cor=False):
         buf = sub.createNode("VRayNodeBitmapBuffer", role + "_file")
         w.set(buf, "file", path)
+        if not cor:
+            # mapa de dado = linear; sem desligar o auto, o V-Ray deduz
+            # sRGB do arquivo (png) e o roughness/normal saem errados
+            w.set(buf, "auto_color_space", 0)
+            w.set(buf, "color_space", "0")
         t = sub.createNode("VRayNodeTexBitmap", role)
         w.connect(t, "bitmap", buf, "bitmap")
         return t
 
     if "basecolor" in maps:
-        w.connect(brdf, "diffuse", tex("basecolor", maps["basecolor"]),
-                  "color")
+        w.connect(brdf, "diffuse",
+                  tex("basecolor", maps["basecolor"], cor=True), "color")
     if "roughness" in maps:
         w.set(brdf, "option_use_roughness", "1")
         w.connect(brdf, "reflect_glossiness",
@@ -162,16 +188,18 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None):
                   "intensity")
     if "normal" in maps:
         w.set(brdf, "bump_type", "1")
+        if s["normal_scale"] != 1.0 and brdf.parm("bump_amount") is not None:
+            w.set(brdf, "bump_amount", s["normal_scale"])
         w.connect(brdf, "bump_map", tex("normal", maps["normal"]), "color")
     if "opacity" in maps:
         w.connect(brdf, "opacity", tex("opacity", maps["opacity"]),
                   "intensity")
     if "emission" in maps:
         w.connect(brdf, "self_illumination",
-                  tex("emission", maps["emission"]), "color")
+                  tex("emission", maps["emission"], cor=True), "color")
     if "refraction" in maps:
-        w.connect(brdf, "refract", tex("refraction", maps["refraction"]),
-                  "color")
+        w.connect(brdf, "refract",
+                  tex("refraction", maps["refraction"], cor=True), "color")
     if "displacement" in maps:
         w.warn("displacement no V-Ray e' da geometria (VRayGeomDisplacedMesh),"
                " nao do material; '%s' sai sem" % name)
@@ -184,5 +212,10 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None):
         w.connect(brdf, "translucency_amount",
                   tex("translucency", maps["translucency"]), "intensity")
 
+    if s["basecolor_gamma"] != 1.0:
+        w.warn("basecolor_gamma custom nao aplicado em V-Ray (BitmapBuffer "
+               "ja faz sRGB); '%s'" % name)
+
     sub.layoutChildren()
+    sub.setMaterialFlag(False)   # quem publica e' o collect
     return sub

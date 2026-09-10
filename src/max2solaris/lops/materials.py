@@ -35,6 +35,23 @@ _DIRETO = {
 }
 _COR = {"basecolor", "emission", "translucency"}
 
+# Os ajustes do Asset_USD_Builder (aba IMG SETTINGS), com os defaults DELE
+# onde nao conflitam com o que ja medimos. remap_disp e' o "Remap
+# Displacement" (in_low, in_high, out_low, out_high): altura 0..1 vira
+# -0.5..0.5, centrada no zero -- None desliga.
+DEFAULTS = {
+    "basecolor_gamma": 1.0,
+    "normal_scale": 1.0,
+    "subsurface": 1.0,      # nosso valor medido p/ plantas (HDA usa 0.25)
+    "remap_disp": None,     # ex.: (0.0, 1.0, -0.5, 0.5)
+}
+
+
+def _cfg(settings):
+    s = dict(DEFAULTS)
+    s.update(settings or {})
+    return s
+
 
 class _W(object):
     """Coletor de avisos + set/connect tolerantes."""
@@ -93,9 +110,11 @@ def _karma_subnet(parent, nome):
     return sub
 
 
-def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None):
+def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
+                settings=None):
     """Subnet 'karma_<name>' completo. Devolve o subnet."""
     w = w or _W()
+    s = _cfg(settings)
     sub = _karma_subnet(parent, "karma_" + name)
     out = sub.node("suboutput1")
     surf = sub.createNode("mtlxstandard_surface", "surface")
@@ -113,6 +132,12 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None):
         if role not in maps:
             continue
         img = image(role, maps[role], "color3" if role in _COR else "default")
+        if role == "basecolor" and s["basecolor_gamma"] != 1.0:
+            g = sub.createNode("mtlxrange", "basecolor_gamma")
+            w.set(g, "signature", "color3")
+            w.set(g, "gamma", s["basecolor_gamma"])
+            w.connect(g, "in", img, "out")
+            img = g
         w.connect(surf, inp, img, "out")
         if role == "emission":
             w.set(surf, "emission", 1)
@@ -127,21 +152,34 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None):
     if "normal" in maps:
         img = image("normal", maps["normal"], "vector3")
         nm = sub.createNode("mtlxnormalmap", "normal_map")
+        if s["normal_scale"] != 1.0:
+            w.set(nm, "scale", s["normal_scale"])
         w.connect(nm, "in", img, "out")
         w.connect(surf, "normal", nm, "out")
 
     if "displacement" in maps:
         img = image("height", maps["displacement"], "default")
+        src = img
+        if s["remap_disp"]:
+            il, ih, ol, oh = s["remap_disp"]
+            rm = sub.createNode("mtlxremap", "remap_height")
+            w.set(rm, "signature", "float")
+            w.set(rm, "inlow", il)
+            w.set(rm, "inhigh", ih)
+            w.set(rm, "outlow", ol)
+            w.set(rm, "outhigh", oh)
+            w.connect(rm, "in", img, "out")
+            src = rm
         disp = sub.createNode("mtlxdisplacement", "displacement")
         w.set(disp, "scale", disp_scale)
-        w.connect(disp, "displacement", img, "out")
+        w.connect(disp, "displacement", src, "out")
         out.setInput(1, disp, 0)
         w.set(out, "name2", "displacement")
 
     if plant and "translucency" in maps:
         img = image("translucency", maps["translucency"], "color3")
         w.set(surf, "thin_walled", 1)
-        w.set(surf, "subsurface", 1.0)
+        w.set(surf, "subsurface", s["subsurface"])
         w.connect(surf, "subsurface_color", img, "out")
 
     sub.layoutChildren()
@@ -152,9 +190,11 @@ def arnold_available():
     return any("htoa" in x.lower() for x in hou.houdiniPath())
 
 
-def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None):
+def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None,
+                 settings=None):
     """arnold_materialbuilder 'arnold_<name>'. Devolve o builder (ou None)."""
     w = w or _W()
+    s = _cfg(settings)
     try:
         ar = parent.createNode("arnold_materialbuilder", "arnold_" + name)
     except Exception as e:
@@ -179,6 +219,12 @@ def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None):
             continue
         cor = role in _COR
         img = image(role, maps[role], cor)
+        if role == "basecolor" and s["basecolor_gamma"] != 1.0:
+            cc = ar.createNode("arnold::color_correct", "basecolor_gamma")
+            w.set(cc, "gamma", s["basecolor_gamma"])
+            w.connect(cc, "input", img, "rgba")
+            w.connect(surf, inp, cc, "rgba")
+            continue
         w.connect(surf, inp, img, "rgba" if cor else "r")
         if role == "emission":
             w.set(surf, "emission", 1)
@@ -194,21 +240,33 @@ def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None):
     if "normal" in maps:
         img = image("normal", maps["normal"], False, single=False)
         nm = ar.createNode("normal_map", "normal_map")
+        if s["normal_scale"] != 1.0:
+            w.set(nm, "strength", s["normal_scale"])
         w.connect(nm, "input", img, "rgba")
         w.connect(surf, "normal", nm, "vector")
 
     if "displacement" in maps:
         img = image("height", maps["displacement"], False)
+        src, out_name = img, "rgba"
+        if s["remap_disp"]:
+            il, ih, ol, oh = s["remap_disp"]
+            rm = ar.createNode("arnold::range", "remap_height")
+            w.set(rm, "input_min", il)
+            w.set(rm, "input_max", ih)
+            w.set(rm, "output_min", ol)
+            w.set(rm, "output_max", oh)
+            w.connect(rm, "input", img, "rgba")
+            src, out_name = rm, "rgb"
         mult = ar.createNode("arnold::multiply", "displacement_amount")
         for c in ("input2r", "input2g", "input2b"):
             w.set(mult, c, disp_scale)
-        w.connect(mult, "input1", img, "rgba")
+        w.connect(mult, "input1", src, out_name)
         w.connect(out, "displacement", mult, "rgb")
 
     if plant and "translucency" in maps:
         img = image("translucency", maps["translucency"], True)
         w.set(surf, "thin_walled", 1)
-        w.set(surf, "subsurface", 1.0)
+        w.set(surf, "subsurface", s["subsurface"])
         w.connect(surf, "subsurface_color", img, "rgba")
 
     ar.layoutChildren()
@@ -217,7 +275,7 @@ def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None):
 
 
 def build_material(parent, name, maps, renderers=("karma", "arnold"),
-                   plant=False, disp_scale=0.01):
+                   plant=False, disp_scale=0.01, settings=None):
     """Cria o material `name`. Devolve (no_final, avisos).
 
     O no final leva o NOME EXATO da parte -- e' o contrato com o
@@ -228,11 +286,12 @@ def build_material(parent, name, maps, renderers=("karma", "arnold"),
     ar = None
     if "arnold" in renderers:
         if arnold_available():
-            ar = build_arnold(parent, name, maps, plant, disp_scale, w)
+            ar = build_arnold(parent, name, maps, plant, disp_scale, w,
+                              settings)
         else:
             w.warn("HtoA nao esta nesta sessao; '%s' sai sem Arnold" % name)
 
-    km = build_karma(parent, name, maps, plant, disp_scale, w) \
+    km = build_karma(parent, name, maps, plant, disp_scale, w, settings) \
         if "karma" in renderers else None
 
     from . import mat_extra
@@ -240,14 +299,14 @@ def build_material(parent, name, maps, renderers=("karma", "arnold"),
     if "renderman" in renderers:
         if mat_extra.renderman_available():
             rman = mat_extra.build_renderman(parent, name, maps, plant,
-                                             disp_scale, w)
+                                             disp_scale, w, settings)
         else:
             w.warn("RenderMan nao esta nesta sessao; '%s' sai sem" % name)
     vr = None
     if "vray" in renderers:
         if mat_extra.vray_available():
             vr = mat_extra.build_vray(parent, name, maps, plant,
-                                      disp_scale, w)
+                                      disp_scale, w, settings)
         else:
             w.warn("V-Ray nao esta nesta sessao; '%s' sai sem" % name)
 
@@ -259,7 +318,11 @@ def build_material(parent, name, maps, renderers=("karma", "arnold"),
     col = parent.createNode("collect", name)
     i = 0
     for n in extras:
-        for oidx in range(len(n.outputNames())):
+        # builder oficial do V-Ray expoe surface/displacement/volume, mas
+        # so' a surface e' usada (displacement no V-Ray e' da geometria)
+        n_outs = 1 if n.type().name() == "vray_vop_builder" \
+            else len(n.outputNames())
+        for oidx in range(n_outs):
             col.setInput(i, n, oidx)
             i += 1
     if km is not None:

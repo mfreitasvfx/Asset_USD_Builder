@@ -57,7 +57,8 @@ class Result(object):
 def build_asset(asset, profile, out_dir=None, asset_name=None,
                 renderers=("karma", "arnold", "renderman", "vray"), parent=None,
                 lod=None, write=True, disp_scale=0.01,
-                geo_path=None, parts=None, variants=None):
+                geo_path=None, parts=None, variants=None,
+                tex_dir=None, cleanup=False, settings=None):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 
     asset_name: para pacotes `asset_grain == "object"` (KitBash), o nome do
@@ -71,14 +72,32 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     cada entrada vira um componentmaterial encadeado com variantname, e o
     USD sai com VARIANTES de material (dark/light no mesmo asset), em vez
     de um build por variante.
+
+    tex_dir: modo de TEXTURA COMPARTILHADA. Copia cada mapa UMA vez para
+    esta pasta e desliga o `localize` do componentoutput. Sem isso um set
+    de atlas unico (Post Apocalypse) copia o atlas por asset -- 119 MB x
+    819 pastas = 100 GB, medido. Os materiais apontam para a copia unica.
+
+    cleanup: destroi a rede depois de escrever o USD (lote: 800+ redes
+    acumuladas numa sessao terminaram em segfault, medido).
+
+    settings: dict com os ajustes do Asset_USD_Builder (basecolor_gamma,
+    normal_scale, subsurface, remap_disp) -- ver materials.DEFAULTS.
     """
     res = Result()
     nome = asset_name or asset.name
     res.asset_name = nome
     partes_asset = parts if parts is not None else asset.parts
 
+    if tex_dir:
+        partes_asset = _share_textures(partes_asset, tex_dir, res)
+        if variants:
+            variants = [(v, _share_textures(p, tex_dir, res))
+                        for v, p in variants]
+
     stage = parent or hou.node("/stage")
-    net = stage.createNode("subnet", "m2s_" + _fbx.material_key(nome))
+    net = stage.createNode("subnet",
+                           "USD_Builder_Asset_" + _fbx.material_key(nome))
     net.moveToGoodPosition()
 
     # -- geometria -------------------------------------------------------
@@ -165,7 +184,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         for var_nome, var_parts in variants:
             ml_v, ligadas = _matlib(net, var_nome, var_parts, subsets,
                                     profile, asset, renderers, disp_scale,
-                                    res)
+                                    res, settings=settings)
             cm_v = net.createNode("componentmaterial", "assign_" + var_nome)
             cm_v.setInput(0, tail_lop)
             cm_v.setInput(1, ml_v)
@@ -179,6 +198,8 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         co = net.createNode("componentoutput", prim)
         co.setInput(0, cm)
         co.parm("rootprim").set("/" + prim)
+        if tex_dir:
+            co.parm("localize").set(0)
         if out_dir:
             usd = "%s/%s/%s.usd" % (str(out_dir).replace(chr(92), "/").rstrip("/"),
                                     nome, nome)
@@ -193,6 +214,9 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
                 res.warn("execute do componentoutput falhou: %s" % e)
             if res.usd_path and not os.path.isfile(res.usd_path):
                 res.warn("componentoutput rodou mas o USD nao existe")
+            if cleanup:
+                res.nodes = {}
+                net.destroy()
         return res
 
     # -- materiais --------------------------------------------------------
@@ -217,7 +241,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             continue
         node, avisos = _mats.build_material(
             ml, _naming.usd_prim_name(parte), mapas, renderers=renderers,
-            plant=plant, disp_scale=disp_scale)
+            plant=plant, disp_scale=disp_scale, settings=settings)
         res.avisos.extend(avisos)
         res.parts_bound.append(_naming.usd_prim_name(parte))
         finais.append(node)
@@ -251,6 +275,8 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     co = net.createNode("componentoutput", prim)
     co.setInput(0, cm)
     co.parm("rootprim").set("/" + prim)
+    if tex_dir:
+        co.parm("localize").set(0)
     if out_dir:
         usd = "%s/%s/%s.usd" % (str(out_dir).replace("\\", "/").rstrip("/"),
                                 nome, nome)
@@ -266,8 +292,46 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             res.warn("execute do componentoutput falhou: %s" % e)
         if res.usd_path and not os.path.isfile(res.usd_path):
             res.warn("componentoutput rodou mas o USD nao existe")
+        if cleanup:
+            res.nodes = {}
+            net.destroy()
 
     return res
+
+
+def _share_textures(parts_dict, tex_dir, res):
+    """Copia cada mapa UMA vez para `tex_dir` e devolve o dict apontando la'.
+
+    E' o contorno dos 100 GB: com atlas compartilhado, o localize do
+    componentoutput copiava o mesmo atlas para dentro de CADA asset.
+    """
+    import shutil
+    tex_dir = str(tex_dir).replace("\\", "/").rstrip("/")
+    if not os.path.isdir(tex_dir):
+        os.makedirs(tex_dir)
+    novo = {}
+    for parte, mapas in parts_dict.items():
+        m2 = {}
+        for papel, caminho in mapas.items():
+            alvo = tex_dir + "/" + os.path.basename(str(caminho))
+            if not os.path.isfile(alvo):
+                try:
+                    # temp + replace: com --jobs, dois workers podem copiar
+                    # o mesmo mapa ao mesmo tempo; replace e' atomico
+                    tmp = "%s.tmp%d" % (alvo, os.getpid())
+                    shutil.copy2(str(caminho), tmp)
+                    try:
+                        os.replace(tmp, alvo)
+                    except OSError:
+                        os.remove(tmp)
+                except Exception as e:
+                    res.warn("copia de textura falhou (%s); usando a origem"
+                             % e)
+                    m2[papel] = caminho
+                    continue
+            m2[papel] = alvo
+        novo[parte] = m2
+    return novo
 
 
 def _subset_names(cg, res):
@@ -329,7 +393,7 @@ def cache_bgeo(geo_path, cache_dir):
 
 
 def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
-            disp_scale, res):
+            disp_scale, res, settings=None):
     """materiallibrary com lista explicita para um conjunto de partes.
 
     Devolve (node, [partes que ganharam material]).
@@ -348,7 +412,7 @@ def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
             continue
         node, avisos = _mats.build_material(
             ml, _naming.usd_prim_name(parte), mapas, renderers=renderers,
-            plant=plant, disp_scale=disp_scale)
+            plant=plant, disp_scale=disp_scale, settings=settings)
         res.avisos.extend(avisos)
         finais.append(node)
         ligadas.append(_naming.usd_prim_name(parte))

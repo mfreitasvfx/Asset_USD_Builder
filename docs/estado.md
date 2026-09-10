@@ -1,6 +1,6 @@
 # Estado — max2solaris
 
-Atualizado: 2026-09-09
+Atualizado: 2026-09-10 (noite)
 
 ## Escopo (definido com o Matheus)
 
@@ -218,10 +218,61 @@ Do KB3D_Converter_2.0 (script lido em Downloads/Kitbash_usd_Converter_latest):
 Correção de contexto: o LunarBase_OUTPUT de referência foi produzido pelo
 KB3D_Converter_2.0 (daí o defaultPrim componentoutput1 e o karma:surface).
 
+## V-Ray de verdade + o lote que o Matheus testou (2026-09-10, noite)
+
+O Matheus testou: "parece funcionar, só não funciona em V-Ray". Diagnóstico
+MEDIDO comparando nosso USD com o que o builder OFICIAL do V-Ray emite
+(`vray_vop_builder` + `vray_material_output`, achado no vfh.shelf):
+
+- NOSSO (errado): NodeGraph → MtlSingleBRDF com terminal `outputs:material`.
+  O delegate Hydra do V-Ray não resolve essa forma → material cinza.
+- OFICIAL: `outputs:vray:surface → BRDFVRayMtl.outputs:brdf` DIRETO.
+
+Conserto: `build_vray` agora cria o `vray_vop_builder` oficial (BRDF no
+input Material do vrayOutput; sem MtlSingleBRDF). No collect só a saída
+`surface` conecta (displacement no V-Ray é da geometria). De quebra: o
+BitmapBuffer estava sRGB em TUDO — mapa de dado agora é linear
+(`auto_color_space=0` + `color_space='0'`; o parm VOP se chama color_space,
+não transfer_function como no USD).
+
+O -498 do husk com o delegate V-Ray é criação do renderer em headless
+(licença), NÃO o asset — o teste de render de verdade é no viewport do
+Matheus.
+
+Mais três problemas do teste dele, todos medidos e consertados:
+
+1. **100 GB de texturas**: o `localize=1` do componentoutput copiava o
+   atlas (119 MB) para DENTRO de cada um dos 819 assets. Modo
+   `tex_dir`/`--tex-mode shared` (default no lote): UMA cópia em
+   `<saida>/textures`, materiais com `../textures/...` relativo,
+   `localize=0`.
+2. **Segfault no arquivo 18/64**: 819 redes acumuladas numa sessão hython.
+   `cleanup=True` destrói o subnet depois de escrever.
+3. **"roda em multithread?"**: `--jobs N` = N processos hython, cada um com
+   a fatia `i::N` dos arquivos (processo, não thread — o hou não é
+   thread-safe p/ build). Cópia de textura ficou atômica (tmp+replace) por
+   causa da corrida entre workers. Medido: 2 workers, 4 arquivos, 392
+   assets, 0 falhas.
+
+Pedidos do Matheus atendidos no mesmo passe:
+- Nó renomeado: subnet `USD_Builder_Asset_<asset>` (era m2s_*).
+- Janela com ETAPAS numeradas como o HDA do Carlo: 1 SCAN, 2 BUILD ASSETS
+  (monta a rede SEM escrever — dá para abrir o subnet e alterar), 3 EXPORT
+  USD's (executa os componentoutput). "chegar e alterar caso for preciso".
+- Settings do Asset_USD_Builder (aba IMG SETTINGS): Displacement Scale,
+  BaseColor Gamma (mtlxrange gamma / arnold color_correct; RenderMan e
+  V-Ray avisam que não aplicam), Normal Scale (mtlxnormalmap.scale /
+  normal_map.strength / pxrnormalmap.bumpScale), SubSurface (peso do sss
+  nas plantas), Remap Displacement (mtlxremap / arnold::range) — em
+  `materials.DEFAULTS`, threading via `settings=` até os builders.
+
 ## Próximo passo
 
-1. Lote completo dos dois sets (PA: 64 arquivos; Lunar: 79 objetos).
+1. Lunar Base completo (79 objetos, esquema FBX único name-matched).
 1b. Presets de shader editáveis (esquema 2.0) — qualidade Jonas Noell no V-Ray.
-2. Duplicados entre kits (detectar no scan, antes de construir).
-3. LAMA como quinto renderer do collect (receitas prontas no max2lama).
-4. Lado Max: janela nunca aberta na UI; variantes VarA/VarB por definir.
+2. TOPs: wrapper de visualização por work item (o --jobs já dá o paralelo;
+   falta o "ver separado pra checar" na UI de TOPs que o Matheus pediu).
+3. Duplicados entre kits (detectar no scan, antes de construir).
+4. LAMA como quinto renderer do collect (receitas prontas no max2lama).
+5. Lado Max: janela nunca aberta na UI; variantes VarA/VarB por definir.
+6. componentoutput em re-run ainda gera _duplicateN.usd (parm de overwrite).

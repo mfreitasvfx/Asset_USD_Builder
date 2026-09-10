@@ -59,6 +59,56 @@ def natural(p):
     return (int(m.group(1)) if m else 1 << 30, p.lower())
 
 
+def _paralelo(a):
+    """Multiprocesso: N hythons, cada um com a fatia i::N dos arquivos.
+
+    Processo (nao thread): o hou nao e' thread-safe para builds paralelos,
+    e processos separados ainda contornam o acumulo de memoria que
+    derrubou o lote de 819 assets numa sessao so'.
+    """
+    import subprocess
+    logs = []
+    procs = []
+    if not os.path.isdir(a.saida):
+        os.makedirs(a.saida)
+    base = [sys.executable, os.path.abspath(__file__), a.raiz, a.saida,
+            "--variant", a.variant, "--renderers", a.renderers,
+            "--tex-mode", a.tex_mode, "--jobs", "1",
+            "--disp-scale", str(a.disp_scale),
+            "--basecolor-gamma", str(a.basecolor_gamma),
+            "--normal-scale", str(a.normal_scale),
+            "--subsurface", str(a.subsurface)]
+    if a.limit:
+        base += ["--limit", str(a.limit)]
+    if a.no_proxy:
+        base.append("--no-proxy")
+    if a.no_simproxy:
+        base.append("--no-simproxy")
+    if a.no_center:
+        base.append("--no-center")
+    if a.unit_scale is not None:
+        base += ["--unit-scale", str(a.unit_scale)]
+    for i in range(a.jobs):
+        log = os.path.join(a.saida, "_log_worker_%d.txt" % i)
+        logs.append(log)
+        fh = open(log, "w")
+        procs.append((subprocess.Popen(
+            base + ["--slice", "%d:%d" % (i, a.jobs)],
+            stdout=fh, stderr=subprocess.STDOUT), fh))
+        print("worker %d/%d -> %s" % (i + 1, a.jobs, log))
+    ret = 0
+    for i, (p, fh) in enumerate(procs):
+        p.wait()
+        fh.close()
+        ret |= p.returncode
+        with open(logs[i]) as f:
+            fim = f.read().strip().splitlines()[-4:]
+        print("worker %d saiu com %d:" % (i, p.returncode))
+        for ln in fim:
+            print("   ", ln)
+    return ret
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("raiz")
@@ -74,7 +124,24 @@ def main():
     ap.add_argument("--no-simproxy", action="store_true")
     ap.add_argument("--no-center", action="store_true")
     ap.add_argument("--unit-scale", type=float, default=None)
+    ap.add_argument("--tex-mode", default="shared",
+                    choices=["shared", "copy"],
+                    help="shared = UMA copia do atlas em <saida>/textures "
+                         "(o localize por asset deu 100 GB no set inteiro, "
+                         "medido); copy = comportamento antigo")
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="processos hython em paralelo, cada um com uma "
+                         "fatia dos arquivos")
+    ap.add_argument("--slice", default=None, help=argparse.SUPPRESS)
+    # settings do Asset_USD_Builder
+    ap.add_argument("--disp-scale", type=float, default=0.01)
+    ap.add_argument("--basecolor-gamma", type=float, default=1.0)
+    ap.add_argument("--normal-scale", type=float, default=1.0)
+    ap.add_argument("--subsurface", type=float, default=1.0)
     a = ap.parse_args()
+
+    if a.jobs > 1 and a.slice is None:
+        return _paralelo(a)
 
     renderers = tuple(r.strip() for r in a.renderers.split(",") if r.strip())
 
@@ -114,7 +181,17 @@ def main():
                                 recursive=True), key=natural)
     if a.limit:
         fbxs = fbxs[:a.limit]
+    if a.slice:
+        idx, n = (int(x) for x in a.slice.split(":"))
+        fbxs = fbxs[idx::n]
     print("arquivos :", len(fbxs))
+
+    tex_dir = None
+    if a.tex_mode == "shared":
+        tex_dir = os.path.join(a.saida, "textures").replace("\\", "/")
+    settings = {"basecolor_gamma": a.basecolor_gamma,
+                "normal_scale": a.normal_scale,
+                "subsurface": a.subsurface}
 
     ok, falhas = [], []
     cache_dir = os.path.join(a.saida, "_bgeo_cache")
@@ -142,7 +219,8 @@ def main():
                     asset, perfil, out_dir=a.saida, asset_name=top,
                     renderers=renderers, geo_path=fonte,
                     parts=({mat_nome: mapas} if variantes is None else None),
-                    variants=variantes)
+                    variants=variantes, tex_dir=tex_dir, cleanup=True,
+                    disp_scale=a.disp_scale, settings=settings)
                 print(res.resumo())
                 if res.usd_path and os.path.isfile(res.usd_path):
                     ok.append(res.usd_path)
