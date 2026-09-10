@@ -182,3 +182,23 @@ def plan(asset):
         avisos.append("perfil espera glossiness e a pasta nao tem")
 
     return p, p.steps, avisos
+
+
+def custom(base_key, **over):
+    """Um perfil derivado com escolhas do usuario por cima dos defaults.
+
+    E' o mecanismo do 'modo': o perfil da biblioteca da' o ponto de partida,
+    e a janela/lote sobrepoe proxy, simproxy, center, unit_scale... A
+    ferramenta se adapta; quem decide o modo de operar e' o Matheus.
+    """
+    base = PERFIS[base_key]
+    campos = dict(
+        key=base.key + "+custom", label=base.label + " (custom)",
+        library=base.library, steps=list(base.steps),
+        lod_policy=base.lod_policy, asset_grain=base.asset_grain,
+        rough_source=base.rough_source, plant_workflow=base.plant_workflow,
+        texture_subdirs=base.texture_subdirs, notes=base.notes,
+        proxy=base.proxy, simproxy=base.simproxy, center=base.center,
+        unit_scale=base.unit_scale)
+    campos.update(over)
+    return Profile(**campos)

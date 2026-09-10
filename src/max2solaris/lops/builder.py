@@ -56,24 +56,36 @@ class Result(object):
 
 def build_asset(asset, profile, out_dir=None, asset_name=None,
                 renderers=("karma", "arnold", "renderman", "vray"), parent=None,
-                lod=None, write=True, disp_scale=0.01):
+                lod=None, write=True, disp_scale=0.01,
+                geo_path=None, parts=None, variants=None):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 
     asset_name: para pacotes `asset_grain == "object"` (KitBash), o nome do
     objeto a extrair do arquivo; None em pacotes pasta-e-asset.
+
+    geo_path / parts: overrides para sets multi-FBX com atlas compartilhado
+    (Post Apocalypse): o lote passa cada .fbx e o material montado do atlas,
+    em vez do que o scan da pasta deduziu.
+
+    variants: [(nome, parts_dict), ...] -- esquema do KB3D_Converter_2.0:
+    cada entrada vira um componentmaterial encadeado com variantname, e o
+    USD sai com VARIANTES de material (dark/light no mesmo asset), em vez
+    de um build por variante.
     """
     res = Result()
     nome = asset_name or asset.name
     res.asset_name = nome
+    partes_asset = parts if parts is not None else asset.parts
 
     stage = parent or hou.node("/stage")
     net = stage.createNode("subnet", "m2s_" + _fbx.material_key(nome))
     net.moveToGoodPosition()
 
     # -- geometria -------------------------------------------------------
-    lods = profile.lods_for(asset)
-    lod = lod or (lods[0] if lods else None)
-    geo_path = asset.geometry.get(lod) if lod else asset.default_geo
+    if geo_path is None:
+        lods = profile.lods_for(asset)
+        lod = lod or (lods[0] if lods else None)
+        geo_path = asset.geometry.get(lod) if lod else asset.default_geo
     if not geo_path:
         res.warn("asset sem geometria; nada a montar")
         return res
@@ -147,6 +159,42 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     # texturas aparece na malha (no Maxtree metade dos IDs nao aparece).
     subsets = _subset_names(cg, res)
 
+    # -- variantes de material (esquema KB3D_Converter_2.0) ---------------
+    if variants:
+        tail_lop = cg
+        for var_nome, var_parts in variants:
+            ml_v, ligadas = _matlib(net, var_nome, var_parts, subsets,
+                                    profile, asset, renderers, disp_scale,
+                                    res)
+            cm_v = net.createNode("componentmaterial", "assign_" + var_nome)
+            cm_v.setInput(0, tail_lop)
+            cm_v.setInput(1, ml_v)
+            cm_v.parm("variantname").set(var_nome)
+            _bind_parts(cm_v, ligadas, single=len(var_parts) == 1)
+            res.parts_bound.extend("%s:%s" % (var_nome, p) for p in ligadas)
+            tail_lop = cm_v
+        cm = tail_lop
+        res.nodes["componentmaterial"] = cm
+        prim = _naming.usd_prim_name(nome)
+        co = net.createNode("componentoutput", prim)
+        co.setInput(0, cm)
+        co.parm("rootprim").set("/" + prim)
+        if out_dir:
+            usd = "%s/%s/%s.usd" % (str(out_dir).replace(chr(92), "/").rstrip("/"),
+                                    nome, nome)
+            co.parm("lopoutput").set(usd)
+            res.usd_path = usd
+        res.nodes["componentoutput"] = co
+        net.layoutChildren()
+        if write and out_dir:
+            try:
+                co.parm("execute").pressButton()
+            except Exception as e:
+                res.warn("execute do componentoutput falhou: %s" % e)
+            if res.usd_path and not os.path.isfile(res.usd_path):
+                res.warn("componentoutput rodou mas o USD nao existe")
+        return res
+
     # -- materiais --------------------------------------------------------
     ml = net.createNode("materiallibrary", "mtl")
     ml.parm("matpathprefix").set("/ASSET/mtl/")
@@ -157,11 +205,11 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     # Asset de material UNICO (Megascans): a malha costuma vir com
     # shop_materialpath generico ('default_material'), entao casar por nome
     # nao faz sentido -- o unico material vai no /ASSET/geo inteiro.
-    single = (len(asset.parts) == 1)
-    alvo_partes = list(asset.parts) if single else subsets
+    single = (len(partes_asset) == 1)
+    alvo_partes = list(partes_asset) if single else subsets
 
     for parte in alvo_partes:
-        mapas = asset.parts.get(parte)
+        mapas = partes_asset.get(parte)
         if not mapas:
             res.parts_missing.append(parte)
             res.warn("subset '%s' sem jogo de texturas -- sem material "
@@ -250,3 +298,73 @@ def list_assets_in_file(geo_path):
         return sorted(info["assets"])
     finally:
         obj.destroy()
+
+
+def cache_bgeo(geo_path, cache_dir):
+    """Converte um arquivo de geometria para .bgeo.sc uma unica vez.
+
+    O passo GenerateBGEO do video do Arcanacom: um FBX de props com dezenas
+    de objetos seria recarregado uma vez POR PROP no lote; o cache derruba
+    isso para uma leitura. Reusa o cache se ja existir.
+    """
+    if not os.path.isdir(cache_dir):
+        os.makedirs(cache_dir)
+    base = os.path.splitext(os.path.basename(str(geo_path)))[0]
+    alvo = os.path.join(cache_dir, base + ".bgeo.sc").replace(chr(92), "/")
+    if os.path.isfile(alvo):
+        return alvo
+    obj = hou.node("/obj").createNode("geo", "m2s_cache")
+    try:
+        f = obj.createNode("file")
+        f.parm("file").set(str(geo_path).replace(chr(92), "/"))
+        rop = obj.createNode("rop_geometry")
+        rop.setInput(0, f)
+        rop.parm("sopoutput").set(alvo)
+        rop.parm("execute").pressButton()
+    finally:
+        obj.destroy()
+    if not os.path.isfile(alvo):
+        raise RuntimeError("bgeo nao foi escrito: %s" % alvo)
+    return alvo
+
+
+def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
+            disp_scale, res):
+    """materiallibrary com lista explicita para um conjunto de partes.
+
+    Devolve (node, [partes que ganharam material]).
+    """
+    ml = net.createNode("materiallibrary", "mtl_" + _fbx.material_key(sufixo))
+    ml.parm("matpathprefix").set("/ASSET/mtl/")
+    plant = profile.plant_workflow and asset.plant
+    single = (len(partes_dict) == 1)
+    alvo = list(partes_dict) if single else subsets
+
+    finais, ligadas = [], []
+    for parte in alvo:
+        mapas = partes_dict.get(parte)
+        if not mapas:
+            res.warn("variante '%s': subset '%s' sem texturas" % (sufixo, parte))
+            continue
+        node, avisos = _mats.build_material(
+            ml, _naming.usd_prim_name(parte), mapas, renderers=renderers,
+            plant=plant, disp_scale=disp_scale)
+        res.avisos.extend(avisos)
+        finais.append(node)
+        ligadas.append(_naming.usd_prim_name(parte))
+    ml.layoutChildren()
+    ml.parm("materials").set(len(finais))
+    for i, node in enumerate(finais, start=1):
+        ml.parm("matnode%d" % i).set(node.name())
+        ml.parm("matpath%d" % i).set(node.name())
+        if ml.parm("assign%d" % i) is not None:
+            ml.parm("assign%d" % i).set(0)
+    return ml, ligadas
+
+
+def _bind_parts(cm, ligadas, single):
+    cm.parm("nummaterials").set(len(ligadas))
+    for i, parte in enumerate(ligadas, start=1):
+        padrao = "/ASSET/geo" if single else "/ASSET/geo/*/%s" % parte
+        cm.parm("primpattern%d" % i).set(padrao)
+        cm.parm("matspecpath%d" % i).set("/ASSET/mtl/%s" % parte)

@@ -195,9 +195,33 @@ de novo, sem reiniciar o Houdini. `install/houdini_reload.py` abre a janela.
 Smoke-test offscreen no hython cobre a construção da UI (34 widgets, scan
 do Maxtree ok); o clique real é do Matheus.
 
+## Post Apocalypse + esquema KB3D_Converter_2.0 (2026-09-10, tarde)
+
+O set do vídeo do Arcanacom é outro formato: 64 FBX numerados, material do
+FBX é lixo ('01 - Default'), atlas único com basecolor dark/light. Sem
+casamento por nome — o material nasce do atlas, como o Default único do hip.
+
+`tools/batch_kitbash.py`: lote com modos (--no-proxy/--no-simproxy/
+--no-center/--unit-scale — "a ferramenta é adaptativa, eu escolho o modo"),
+cache bgeo para arquivos de props (o GenerateBGEO do vídeo; sem ele, 2
+arquivos estouravam 10 min — com ele, 388 assets em ~8 min, 0 falhas).
+
+Do KB3D_Converter_2.0 (script lido em Downloads/Kitbash_usd_Converter_latest):
+- collect com material flag + um shader por renderer (karma_X, vray_X...)
+- presets de shader copiáveis (qualidade controlada pelo artista) — ainda
+  não adotado, anotado
+- **variantes de material = variantes USD**: componentmaterial encadeados
+  com variantname. Implementado: `build_asset(variants=[...])`;
+  Building_01 saiu com variantSet mtl {dark, light}, vray+mtlx+preview.
+- glass/window ganham transmission automático por nome — anotado, não feito.
+
+Correção de contexto: o LunarBase_OUTPUT de referência foi produzido pelo
+KB3D_Converter_2.0 (daí o defaultPrim componentoutput1 e o karma:surface).
+
 ## Próximo passo
 
-1. O lote dos 79 do KitBash (loop hython ou TOPs).
+1. Lote completo dos dois sets (PA: 64 arquivos; Lunar: 79 objetos).
+1b. Presets de shader editáveis (esquema 2.0) — qualidade Jonas Noell no V-Ray.
 2. Duplicados entre kits (detectar no scan, antes de construir).
 3. LAMA como quinto renderer do collect (receitas prontas no max2lama).
 4. Lado Max: janela nunca aberta na UI; variantes VarA/VarB por definir.
