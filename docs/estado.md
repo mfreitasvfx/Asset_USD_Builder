@@ -143,6 +143,39 @@ Pendências conhecidas:
 5. Vídeos do Jonas Noell (UVWRandomizer anti-tiling, Parallax Occlusion)
    assistidos e anotados — base do toolset de triplanar/anti-tiling futuro.
 
+## KitBash no padrão Rebelway (2026-09-10)
+
+O componentgeometry agora segue o RBL_Component_Builder_Template: branch
+**default** (file → blast por objeto → nomes de peça limpos → convert_units →
+center na origem), **proxy** (polyreduce 6%) e **simproxy** (shrinkwrap =
+convex hull, para os LOPs de física).
+
+A/B contra o build de referência do Matheus (LunarBase_OUTPUT/Antenna_A):
+
+| | nosso | referência |
+|---|---|---|
+| defaultPrim | KB3D_LNB_Antenna_A | componentoutput1 (bug) |
+| materiais | 11 | 11 |
+| outputs | arnold+mtlx surface **e displacement** + preview | surface só |
+| proxy | sim | sim |
+| simproxy (guide) | **sim** | não |
+| bbox | **idêntico** (15.3 m) | 15.3 m |
+
+A escala veio do A/B: o FBX está em cm e sem o `unit_scale=0.01` do perfil o
+asset saía 100× maior. É o "convert the units" do vídeo do Arcanacom.
+
+**Todos os renderers no 21.0.596.** Dois consertos de ambiente no caminho:
+1. O htoa.json apontava para o build do 22.0; o Matheus instalou o 6.4.6.0
+   para 21.0.596 e o trava de ontem foi removido.
+2. Causa raiz dos materiais vazios: o tradutor USD do **V-Ray** importa
+   `vfh` num contexto onde `vfh_home/scripts/python` ainda não está no path
+   quando o HtoA muda a ordem de init — e a exceção corrompe o registro de
+   tradutores inteiro (thePreviewTranslators). Fix: PYTHONPATH no package do
+   V-Ray (backup .bak2). Karma+RenderMan+V-Ray+Arnold convivem agora.
+
+Desvios documentados do template: proxy por polyreduce (não VDB→remesh) e
+simproxy de hull único (não por peça via foreach). Trocar se precisar.
+
 ## Próximo passo
 
 1. O builder em LOPs: `componentgeometry` (File SOP + split por asset) →

@@ -38,7 +38,9 @@ class Profile(object):
     def __init__(self, key, label, library, steps,
                  lod_policy="all", asset_grain="folder",
                  rough_source="roughness", plant_workflow=False,
-                 texture_subdirs=(), notes=""):
+                 texture_subdirs=(), notes="",
+                 proxy=False, simproxy=False, center=False,
+                 unit_scale=1.0):
         self.key = key
         self.label = label
         self.library = library
@@ -49,6 +51,15 @@ class Profile(object):
         self.plant_workflow = plant_workflow
         self.texture_subdirs = tuple(texture_subdirs)
         self.notes = notes
+        # padrao Rebelway do component builder: branch de proxy (GL leve),
+        # branch de simproxy (convex hull p/ Edit/Drop LOP) e centralizacao
+        # da peca na origem (asset de catalogo, nao layout de set)
+        self.proxy = proxy
+        self.simproxy = simproxy
+        self.center = center
+        # fonte em cm (KitBash) -> USD em metros. Medido no A/B: sem isso o
+        # asset sai 100x maior que o build de referencia do Matheus.
+        self.unit_scale = unit_scale
 
     def lods_for(self, asset):
         """Quais LODs este perfil quer, dado o que a pasta tem."""
@@ -118,6 +129,7 @@ PERFIS = {
         asset_grain="object",
         rough_source="roughness",
         texture_subdirs=("KB3DTextures", "textures"),
+        proxy=True, simproxy=True, center=True, unit_scale=0.01,
         notes="um arquivo com dezenas de objetos e um atlas compartilhado",
     ),
 

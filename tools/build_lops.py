@@ -37,6 +37,14 @@ def main():
         print("asset ja construido; nada a montar.")
         return 0
 
+    if p.asset_grain == "object" and obj is None:
+        nomes = builder.list_assets_in_file(a.default_geo)
+        print("%d objetos no arquivo; use --object <nome>. Primeiros:"
+              % len(nomes))
+        for n in nomes[:10]:
+            print("   ", n)
+        return 0
+
     res = builder.build_asset(a, p, out_dir=out, asset_name=obj,
                               renderers=("karma", "arnold"))
     print(res.resumo())

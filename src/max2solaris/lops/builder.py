@@ -92,7 +92,52 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         blast.parm("negate").set(1)         # manter, nao deletar
         tail = blast
 
+        # nome hierarquico ('X_grp/X_Main') vira nome de peca limpo
+        wr = sop.createNode("attribwrangle", "clean_piece_names")
+        wr.setInput(0, tail)
+        wr.parm("class").set(1)
+        wr.parm("snippet").set(
+            'string p[] = split(s@name, "/"); s@name = p[len(p)-1];')
+        tail = wr
+
+    # ---- padrao Rebelway do component builder -------------------------
+    # (RBL_Component_Builder_Template: default + proxy + simproxy)
+    escala = float(getattr(profile, "unit_scale", 1.0) or 1.0)
+    if escala != 1.0:
+        # o "convert the units" do video: fonte em cm -> USD em metros
+        xf = sop.createNode("xform", "convert_units")
+        xf.setInput(0, tail)
+        xf.parm("scale").set(escala)
+        tail = xf
+
+    if getattr(profile, "center", False):
+        # peca de catalogo senta na origem: centra XZ, apoia no chao (min Y).
+        # doscale fica 0 -- centralizar nunca pode reescalar o asset.
+        ms = sop.createNode("matchsize", "center_to_origin")
+        ms.setInput(0, tail)
+        ms.parm("justify_x").set(2)   # center   (menu medido)
+        ms.parm("justify_y").set(1)   # min = chao
+        ms.parm("justify_z").set(2)
+        tail = ms
+
     sop.node("default").setInput(0, tail)
+
+    if getattr(profile, "proxy", False):
+        # proxy leve p/ GL. O template usa VDB->remesh->polyreduce; aqui e'
+        # polyreduce direto (medido) -- pra hard-surface o resultado serve e
+        # evita dois nos com parms nao medidos. Trocar por VDB se faltar.
+        pr = sop.createNode("polyreduce::2.0", "proxy_reduce")
+        pr.setInput(0, tail)
+        pr.parm("percentage").set(6.0)
+        sop.node("proxy").setInput(0, pr)
+
+    if getattr(profile, "simproxy", False):
+        # convex hull p/ os LOPs de fisica (Edit/Drop). O template faz por
+        # peca via foreach; v1 e' um hull do objeto inteiro -- suficiente
+        # pra prop de kitbash, e sem block begin/end programatico.
+        sw = sop.createNode("shrinkwrap::2.0", "simproxy_hull")
+        sw.setInput(0, tail)
+        sop.node("simproxy").setInput(0, sw)
     cg.parm("partitionattribs").set("shop_materialpath")
     cg.parm("prefixpartitionsubsets").set(0)
     res.nodes["componentgeometry"] = cg
