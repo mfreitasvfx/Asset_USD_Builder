@@ -98,6 +98,51 @@ resolver, e o que fazemos com cada um:
 Ele também converte unidades no ROP FBX — o mesmo cuidado que já temos no
 lado do Max (Y-up/cm).
 
+## O builder em LOPs (2026-09-09, fim do dia)
+
+`src/max2solaris/lops/` monta o componente: `componentgeometry` (File SOP +
+partição por `shop_materialpath`, subsets sem prefixo) → `componentmaterial`
+(materiallibrary em `/ASSET/mtl/`, bind explícito por parte) →
+`componentoutput` (rootprim = nome do asset, sanitizado).
+
+**Verificado escrevendo USD de verdade:**
+
+| asset | resultado |
+|---|---|
+| Megascans (21.0.596) | 1 material Karma+preview, 1 bind, displacement |
+| Maxtree (21.0.596) | 6 materiais, 6 binds, glossiness→invert, **thin_walled+subsurface nas folhas** |
+| Megascans (22.0.368) | **Karma + Arnold no mesmo material** via collect |
+
+Fatos medidos que sustentam o desenho:
+- `partitionattribs` + `prefixpartitionsubsets=0` → subset com o nome limpo
+  do material (probe_component.py)
+- o componentmaterial NÃO casa por nome sozinho (medido; o hip do vídeo usa
+  um Default só). Bind explícito por multiparm, uma entrada por parte.
+- Megascans traz `shop_materialpath='default_material'` → asset de material
+  único binda o material no `/ASSET/geo` inteiro, ignorando nome de subset.
+- prim começando com dígito (`3d_...`) é inválido em USD e derruba o
+  componentoutput em cascata → `naming.usd_prim_name()`.
+
+Receitas de material: conversores da Rebelway (Karma mtlx + Arnold
+standard_surface + collect). Desvio consciente: mapa de dado em Raw no
+Arnold (eles usavam ACEScg em roughness/metalness). Planta = thin_walled +
+subsurface com o mapa de translucency — a regra do Matheus, agora nos dois
+renderers.
+
+**Iteração sem reiniciar o Houdini:** `tools/build_lops.py` roda tudo via
+hython; `install/houdini_reload.py` é o snippet de recarga para a sessão
+aberta (mesmo padrão do lado Max).
+
+Pendências conhecidas:
+1. componentoutput gera `_duplicate1.usd` em re-runs — falta o parm de
+   overwrite; e os nós soltos do Karma publicam 2 prims Material extras
+   além do collect (inofensivo, mas é ruído).
+2. KitBash split (`--object`) escrito e não testado ponta a ponta.
+3. Resolução de textura (4K/8K do Megascans) ainda não é escolha de perfil.
+4. RenderMan e V-Ray nos materiais LOPs — receitas já medidas no max2lama.
+5. Vídeos do Jonas Noell (UVWRandomizer anti-tiling, Parallax Occlusion)
+   assistidos e anotados — base do toolset de triplanar/anti-tiling futuro.
+
 ## Próximo passo
 
 1. O builder em LOPs: `componentgeometry` (File SOP + split por asset) →

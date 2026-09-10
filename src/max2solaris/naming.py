@@ -200,3 +200,15 @@ def texture_role(filename):
         return None
     suf = texture_suffix_of(filename)
     return SUFFIX_ROLE.get(suf) if suf else None
+
+
+def usd_prim_name(name):
+    """Nome valido de prim USD: [A-Za-z_][A-Za-z0-9_]*.
+
+    '3d_historical_x' e' invalido (comeca com digito) e derruba o
+    componentoutput inteiro em cascata -- medido no primeiro build.
+    """
+    out = sanitize(name)
+    if out and out[0].isdigit():
+        out = "_" + out
+    return out or "asset"
