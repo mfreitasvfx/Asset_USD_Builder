@@ -302,3 +302,25 @@ lote por ele.
 4. LAMA como quinto renderer do collect (receitas prontas no max2lama).
 5. Lado Max: janela nunca aberta na UI; variantes VarA/VarB por definir.
 6. componentoutput em re-run ainda gera _duplicateN.usd (parm de overwrite).
+
+## Feedback do 2o teste + Asset Gallery (2026-09-10, noite)
+
+Do print do Matheus, tudo medido/consertado:
+- Lista em ORDEM NATURAL (`library.natural_key`): 1, 2, ..., 10 — não 1, 10, 11.
+- Nó `output0` conectado embaixo do componentoutput nos dois caminhos.
+- Centralizar ANTES de converter escala (equivalente geometricamente;
+  ordem legível — pedido dele).
+- Setas dos spinboxes maiores (26px de altura, botões 22px).
+- Arnold DESLIGADO por default na janela ("esquece ele por enquanto").
+- **Thumbnail + Asset Gallery**: `gallery.py` em cima do OFICIAL
+  `husd.assetutils.AssetGallery` — `renderThumbnailForAsset` (render
+  externo karma, funciona headless; medido) e `addAsset` com
+  `variant_sets=["mtl"]`: dark/light viram TILES separados na Layout
+  Asset Gallery com seleção automática de variante. Dedup por nome-BASE
+  (labels saem "Nome (dark)") ANTES de inserir — o problema de duplicados
+  que o vídeo conserta depois no DB Browser. Lote: --gallery (passe do
+  processo pai = um escritor no SQLite) e --thumbs (por worker). Janela:
+  checkbox no export; db em <saida>/asset_gallery.db; apontar a pane
+  Layout Asset Gallery para ele.
+- "Smoke test" explicado ao Matheus: teste automático que só abre a
+  janela offscreen e confere que ela constrói sem erro — não clica nada.

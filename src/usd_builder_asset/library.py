@@ -70,6 +70,13 @@ def _ext(p):
     return os.path.splitext(str(p))[1].lower()
 
 
+def natural_key(p):
+    """Ordena '2.fbx' antes de '10.fbx' (numeros como numeros)."""
+    nome = os.path.basename(str(p)).lower()
+    return [int(t) if t.isdigit() else t
+            for t in re.split(r"(\d+)", nome)]
+
+
 class Asset(object):
     """O que um builder precisa saber antes de montar qualquer coisa."""
 
@@ -268,7 +275,7 @@ def scan(root):
                 pass
 
     a.geometry = geo_por_lod
-    a.geo_files.sort()
+    a.geo_files.sort(key=natural_key)
     a.plant = naming.looks_like_plant([n for n, _c in arquivos])
     a.library = classify([n for n, _c in arquivos])
 

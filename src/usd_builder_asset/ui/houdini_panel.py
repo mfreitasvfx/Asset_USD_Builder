@@ -100,7 +100,8 @@ class Panel(QtWidgets.QWidget):
         self.cks = {}
         for r in RENDERERS:
             ck = QtWidgets.QCheckBox(r)
-            ck.setChecked(True)
+            # "tirei o arnold por enquanto, esquece ele" (2026-09-10)
+            ck.setChecked(r != "arnold")
             self.cks[r] = ck
             hb.addWidget(ck)
         wrapR = QtWidgets.QWidget()
@@ -135,6 +136,12 @@ class Panel(QtWidgets.QWidget):
             sp.setRange(0.0, 100.0)
             sp.setSingleStep(passo)
             sp.setValue(valor)
+            # as setas default do Qt sao minusculas ("gosto das setas mas
+            # esta muito pequena") -- campo mais alto e botoes largos
+            sp.setMinimumHeight(26)
+            sp.setStyleSheet(
+                "QDoubleSpinBox::up-button, QDoubleSpinBox::down-button "
+                "{ width: 22px; }")
             return sp
 
         self.spDisp = spin(0.01)
@@ -154,6 +161,11 @@ class Panel(QtWidgets.QWidget):
         wrapP = QtWidgets.QWidget()
         wrapP.setLayout(hbP)
         fS.addRow("Branches", wrapP)
+
+        self.ckGallery = QtWidgets.QCheckBox(
+            "Thumbnail + Asset Gallery (<saida>/asset_gallery.db)")
+        self.ckGallery.setChecked(True)
+        fS.addRow(self.ckGallery)
         raiz.addWidget(gS)
 
         linha3 = QtWidgets.QHBoxLayout()
@@ -332,14 +344,22 @@ class Panel(QtWidgets.QWidget):
                   "e aperte 3 — EXPORT USD's.")
 
     def _export(self):
-        """Etapa 3: executa os componentoutput montados na etapa 2."""
+        """Etapa 3: executa os componentoutput montados na etapa 2.
+
+        Com o Thumbnail + Asset Gallery ligado, cada asset escrito ganha
+        thumbnail (GL) e entra no asset_gallery.db da saida -- o esquema
+        do video, mas com dedup ANTES de inserir.
+        """
         _reload_core()
-        from usd_builder_asset import log
+        from usd_builder_asset import gallery, log
         vivos = [r for r in self._builds
                  if r.nodes.get("componentoutput") is not None]
         if not vivos:
             self._diz("nada montado — rode o 2 — BUILD ASSETS antes.")
             return
+        out = self.edSaida.text().strip()
+        db = (out.rstrip("/") + "/asset_gallery.db"
+              if out and self.ckGallery.isChecked() else None)
         t = log.Tempo()
         self._diz("-" * 10 + " START EXPORTING USD's " + "-" * 10)
         escritos = 0
@@ -352,14 +372,25 @@ class Panel(QtWidgets.QWidget):
                     co.parm("execute").pressButton()
                     ok = res.usd_path and os.path.isfile(res.usd_path)
                     escritos += 1 if ok else 0
+                    extra = ""
+                    if ok and db:
+                        png = gallery.thumbnail(res.usd_path)
+                        estado = gallery.registrar(
+                            db, res.asset_name, res.usd_path, png,
+                            variant_set=res.variant_set)
+                        extra = "  [gallery: %s%s]" % (
+                            estado, "" if png else ", sem thumbnail")
                     self._diz("✓ EXPORT: %s ........... %d/%d%s"
                               % (res.asset_name, i + 1, len(vivos),
-                                 "" if ok else "  (NAO escrito!)"))
+                                 extra if ok else "  (NAO escrito!)"))
                 except Exception:
                     self._diz(traceback.format_exc())
         self._diz(t.build_time())
         self._diz("-" * 10 + " FINISHED EXPORTING (%d/%d) " %
                   (escritos, len(vivos)) + "-" * 10)
+        if db:
+            self._diz("Asset Gallery: aponte a pane Layout Asset Gallery "
+                      "para %s" % db)
 
 
 _painel = None

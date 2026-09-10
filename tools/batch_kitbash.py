@@ -69,6 +69,10 @@ def _paralelo(a):
         base.append("--no-center")
     if a.unit_scale is not None:
         base += ["--unit-scale", str(a.unit_scale)]
+    if a.thumbs:
+        base.append("--thumbs")
+    # --gallery NAO desce para os workers: o pai registra tudo no final,
+    # senao N processos brigam pelo mesmo SQLite
     for i in range(a.jobs):
         log = os.path.join(a.saida, "_log_worker_%d.txt" % i)
         logs.append(log)
@@ -87,6 +91,8 @@ def _paralelo(a):
         print("worker %d saiu com %d:" % (i, p.returncode))
         for ln in fim:
             print("   ", ln)
+    if a.gallery:
+        _gallery_pass(a.saida, "mtl" if a.variant == "both" else None)
     return ret
 
 
@@ -119,6 +125,12 @@ def main():
     ap.add_argument("--basecolor-gamma", type=float, default=1.0)
     ap.add_argument("--normal-scale", type=float, default=1.0)
     ap.add_argument("--subsurface", type=float, default=1.0)
+    ap.add_argument("--gallery", action="store_true",
+                    help="registra os assets em <saida>/asset_gallery.db "
+                         "ao final (um escritor so', com dedup)")
+    ap.add_argument("--thumbs", action="store_true",
+                    help="gera thumbnail.png por asset (render karma -- "
+                         "LENTO num set grande)")
     a = ap.parse_args()
 
     if a.jobs > 1 and a.slice is None:
@@ -201,7 +213,8 @@ def main():
                     renderers=renderers, geo_path=fonte,
                     parts=({mat_nome: mapas} if variantes is None else None),
                     variants=variantes, tex_dir=tex_dir, cleanup=True,
-                    disp_scale=a.disp_scale, settings=settings)
+                    disp_scale=a.disp_scale, settings=settings,
+                    thumb=a.thumbs)
                 print(res.resumo())
                 if res.usd_path and os.path.isfile(res.usd_path):
                     ok.append(res.usd_path)
@@ -216,7 +229,27 @@ def main():
     print("ok: %d | falhou: %d" % (len(ok), len(falhas)))
     for f in falhas[:10]:
         print("   ", f)
+
+    # gallery so' no processo "dono" (sem --slice): um escritor no SQLite
+    if a.gallery and a.slice is None:
+        _gallery_pass(a.saida, "mtl" if a.variant == "both" else None)
     return 1 if falhas else 0
+
+
+def _gallery_pass(saida, variant_set=None):
+    from usd_builder_asset import gallery
+    db = os.path.join(saida, "asset_gallery.db").replace("\\", "/")
+    itens = []
+    for pasta in sorted(os.listdir(saida)):
+        d = os.path.join(saida, pasta)
+        usd = os.path.join(d, pasta + ".usd")
+        if not os.path.isfile(usd):
+            continue
+        png = os.path.join(d, "thumbnail.png")
+        itens.append((pasta, usd, png if os.path.isfile(png) else None))
+    novos, dups = gallery.registrar_lote(db, itens, variant_set=variant_set)
+    print("asset gallery: %d novos, %d ja existiam -> %s"
+          % (novos, dups, db))
 
 
 if __name__ == "__main__":
