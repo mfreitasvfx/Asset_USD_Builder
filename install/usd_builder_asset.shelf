@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Shelf do USD_Builder_Asset.
+
+     Instalar: copie este arquivo (e o usd_builder_asset.svg ao lado) para
+         C:/Users/<voce>/Documents/houdini21.0/toolbar/
+     Depois, no Houdini: "+" na barra de shelves -> Shelves -> marque
+     "USD_Builder". O botao recarrega os modulos a cada clique, entao da'
+     para editar no VS Code e clicar de novo, sem reiniciar o Houdini.
+-->
+<shelfDocument>
+  <tool name="usd_builder_asset" label="USD_Builder_Asset"
+        icon="C:/dev/max2solaris/install/usd_builder_asset.svg">
+    <helpText><![CDATA[Abre a janela do USD_Builder_Asset (max2solaris):
+1 - SCAN, 2 - BUILD ASSETS, 3 - EXPORT USD's.]]></helpText>
+    <script scriptType="python"><![CDATA[exec(open(r"C:\dev\max2solaris\install\houdini_reload.py").read())]]></script>
+  </tool>
+
+  <toolshelf name="usd_builder" label="USD_Builder">
+    <memberTool name="usd_builder_asset"/>
+  </toolshelf>
+</shelfDocument>
