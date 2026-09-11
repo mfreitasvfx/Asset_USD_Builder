@@ -72,9 +72,16 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
     w.set(out, "name1", "surface")
 
     def image(role, path, cor):
+        if s.get("tex_renderman"):
+            # a etapa .tex ACEScg do Asset_USD_Builder (texconv.py)
+            from .. import texconv
+            path = texconv.tex(path, role, avisos=w.avisos)
         img = sub.createNode("pxrtexture", role)
         w.set(img, "filename", path)
-        w.set(img, "linearize", 1 if cor else 0)
+        # linearize DESLIGADO -- medido pelo Matheus no viewport: o color
+        # manager do RfH (e o .tex ACEScg) ja entregam linear; com
+        # linearize=1 a cor corrigia duas vezes
+        w.set(img, "linearize", 0)
         return img
 
     def tofloat(role, src):

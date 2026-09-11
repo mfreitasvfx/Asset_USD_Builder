@@ -122,7 +122,7 @@ class Panel(QtWidgets.QWidget):
 
         self.ckTexShared = QtWidgets.QCheckBox(
             "Texturas compartilhadas (UMA copia em <saida>/textures)")
-        self.ckTexShared.setChecked(True)
+        self.ckTexShared.setChecked(False)   # "deixa as opcoes todas desligadas"
         fR.addRow(self.ckTexShared)
         raiz.addWidget(gR)
 
@@ -164,8 +164,13 @@ class Panel(QtWidgets.QWidget):
 
         self.ckGallery = QtWidgets.QCheckBox(
             "Thumbnail + Asset Gallery (<saida>/asset_gallery.db)")
-        self.ckGallery.setChecked(True)
+        self.ckGallery.setChecked(False)
         fS.addRow(self.ckGallery)
+
+        self.ckTexRman = QtWidgets.QCheckBox(
+            "Converter .tex ACEScg p/ RenderMan (etapa do Asset_USD_Builder)")
+        self.ckTexRman.setChecked(False)
+        fS.addRow(self.ckTexRman)
         raiz.addWidget(gS)
 
         linha3 = QtWidgets.QHBoxLayout()
@@ -278,7 +283,8 @@ class Panel(QtWidgets.QWidget):
             tex_dir = out.rstrip("/") + "/textures"
         settings = {"basecolor_gamma": self.spGamma.value(),
                     "normal_scale": self.spNormal.value(),
-                    "subsurface": self.spSss.value()}
+                    "subsurface": self.spSss.value(),
+                    "tex_renderman": self.ckTexRman.isChecked()}
         over = {"proxy": self.ckProxy.isChecked(),
                 "simproxy": self.ckSimproxy.isChecked()}
 

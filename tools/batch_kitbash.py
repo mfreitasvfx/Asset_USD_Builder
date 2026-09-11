@@ -71,6 +71,8 @@ def _paralelo(a):
         base += ["--unit-scale", str(a.unit_scale)]
     if a.thumbs:
         base.append("--thumbs")
+    if a.tex_renderman:
+        base.append("--tex-renderman")
     # --gallery NAO desce para os workers: o pai registra tudo no final,
     # senao N processos brigam pelo mesmo SQLite
     for i in range(a.jobs):
@@ -128,6 +130,9 @@ def main():
     ap.add_argument("--gallery", action="store_true",
                     help="registra os assets em <saida>/asset_gallery.db "
                          "ao final (um escritor so', com dedup)")
+    ap.add_argument("--tex-renderman", action="store_true",
+                    help="converte mapas p/ .tex ACEScg no material RenderMan "
+                         "(a etapa do Asset_USD_Builder)")
     ap.add_argument("--thumbs", action="store_true",
                     help="gera thumbnail.png por asset (render karma -- "
                          "LENTO num set grande)")
@@ -184,7 +189,8 @@ def main():
         tex_dir = os.path.join(a.saida, "textures").replace("\\", "/")
     settings = {"basecolor_gamma": a.basecolor_gamma,
                 "normal_scale": a.normal_scale,
-                "subsurface": a.subsurface}
+                "subsurface": a.subsurface,
+                "tex_renderman": a.tex_renderman}
 
     ok, falhas = [], []
     cache_dir = os.path.join(a.saida, "_bgeo_cache")

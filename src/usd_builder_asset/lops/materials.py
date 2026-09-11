@@ -44,6 +44,7 @@ DEFAULTS = {
     "normal_scale": 1.0,
     "subsurface": 1.0,      # nosso valor medido p/ plantas (HDA usa 0.25)
     "remap_disp": None,     # ex.: (0.0, 1.0, -0.5, 0.5)
+    "tex_renderman": False,  # etapa .tex ACEScg do HDA (texconv.py)
 }
 
 

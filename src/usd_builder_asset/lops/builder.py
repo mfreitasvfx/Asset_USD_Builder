@@ -100,6 +100,15 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     net = stage.createNode("subnet",
                            "USD_Builder_Asset_" + _fbx.material_key(nome))
     net.moveToGoodPosition()
+    # padrao de cores do Asset_USD_Builder (lido do PythonModule dele):
+    # planta verde-oliva, objeto azul, variante laranja; geo amarelo-palha,
+    # matlib verde-claro (vermelho sem textura), output verde.
+    if profile.plant_workflow and asset.plant:
+        net.setColor(hou.Color(0.5, 0.7, 0.3))      # NodeColorPlant
+    elif variants:
+        net.setColor(hou.Color(1.0, 0.6, 0.0))      # NodeColorObjVar
+    else:
+        net.setColor(hou.Color(0.29, 0.56, 0.89))   # NodeColorObj
 
     # -- geometria -------------------------------------------------------
     if geo_path is None:
@@ -111,6 +120,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         return res
 
     cg = net.createNode("componentgeometry", "geo")
+    cg.setColor(hou.Color(1.0, 1.0, 0.5))           # cor do HDA p/ geo
     sop = cg.node("sopnet/geo")
     fnode = _fbx.load_sop(sop, geo_path)
     tail = fnode
@@ -201,6 +211,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         res.nodes["componentmaterial"] = cm
         prim = _naming.usd_prim_name(nome)
         co = net.createNode("componentoutput", prim)
+        co.setColor(hou.Color(0.0, 1.0, 0.0))   # cor do HDA p/ output
         co.setInput(0, cm)
         co.parm("rootprim").set("/" + prim)
         if tex_dir:
@@ -256,6 +267,8 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         res.parts_bound.append(_naming.usd_prim_name(parte))
         finais.append(node)
     ml.layoutChildren()
+    # cor do HDA: verde-claro com material, vermelho sem textura nenhuma
+    ml.setColor(hou.Color(0.5, 1.0, 0.5) if finais else hou.Color(1, 0, 0))
     # lista EXPLICITA: so' o no final de cada parte vira prim Material.
     # Sem isso o auto-fill publicava tambem o subnet karma e o displacement
     # soltos, poluindo /ASSET/mtl com prims que nada binda.
@@ -283,6 +296,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     # -- saida ------------------------------------------------------------
     prim = _naming.usd_prim_name(nome)
     co = net.createNode("componentoutput", prim)
+    co.setColor(hou.Color(0.0, 1.0, 0.0))   # cor do HDA p/ output
     co.setInput(0, cm)
     co.parm("rootprim").set("/" + prim)
     if tex_dir:
@@ -445,6 +459,7 @@ def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
         finais.append(node)
         ligadas.append(_naming.usd_prim_name(parte))
     ml.layoutChildren()
+    ml.setColor(hou.Color(0.5, 1.0, 0.5) if finais else hou.Color(1, 0, 0))
     ml.parm("materials").set(len(finais))
     for i, node in enumerate(finais, start=1):
         ml.parm("matnode%d" % i).set(node.name())

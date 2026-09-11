@@ -324,3 +324,33 @@ Do print do Matheus, tudo medido/consertado:
   Layout Asset Gallery para ele.
 - "Smoke test" explicado ao Matheus: teste automático que só abre a
   janela offscreen e confere que ela constrói sem erro — não clica nada.
+
+## Espaços de cor + .tex + cores dos nós (2026-09-10, madrugada)
+
+Pedidos do Matheus, tudo medido:
+
+1. **Opções todas desligadas por default** na janela (tex compartilhada,
+   gallery, proxy, simproxy, .tex) — ele liga o que quiser.
+2. **Espaços de cor conferidos contra os scripts** (recuperados do
+   transcript): Arnold da Rebelway = cor sRGB - Texture, normal/opacity
+   Raw, e roughness/metalness em ACEScg — mantivemos nosso desvio
+   consciente (Raw em dado; ACEScg em mapa de dado distorce valores).
+   Karma da Rebelway usa SÓ a signature (color3/default/vector3), sem
+   colorspace explícito — exatamente o que já fazemos. Os scripts NÃO
+   convertem .rat/.tx: eles PULAM (mipmaps) — nosso scanner idem.
+3. **linearize DESLIGADO no RenderMan** — achado do Matheus no viewport:
+   o color manager do RfH (e o .tex ACEScg) já entregam linear; com
+   linearize=1 corrigia duas vezes.
+4. **texconv.py = o ImgConvert do HDA** (lido do PythonModule): OIIO
+   colorconvert → ACEScg + make_texture (tile 32, half, prman_metadata,
+   wrap periodic), nomes idênticos (_srgbtex_acescg/_data_acescg/.tex).
+   PEGADINHA MEDIDA: o nome do espaço depende do config OCIO ativo — a
+   máquina do Matheus roda o sidefx_aces do Labs, onde sRGB é
+   'Texture - sRGB(2.2) (.jpg, .png)'; o 'sRGB - Texture' do HDA falharia
+   CALADO (e o .tex sairia sem conversão). _resolve() casa candidatos
+   contra o config ativo e NUNCA escreve .tex sem conversão.
+   Opt-in: checkbox na janela / --tex-renderman no lote.
+5. **Cores dos nós = padrão do Asset_USD_Builder** (lido do PythonModule):
+   subnet planta [0.5,0.7,0.3], objeto [0.29,0.56,0.89], variante
+   [1,0.6,0]; geo [1,1,0.5]; matlib [0.5,1,0.5] (vermelho sem textura);
+   componentoutput [0,1,0].
