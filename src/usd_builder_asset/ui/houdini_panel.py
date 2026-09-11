@@ -171,6 +171,30 @@ class Panel(QtWidgets.QWidget):
             "Converter .tex ACEScg p/ RenderMan (etapa do Asset_USD_Builder)")
         self.ckTexRman.setChecked(False)
         fS.addRow(self.ckTexRman)
+
+        # config do thumbnail (a secao Thumbnail do componentoutput)
+        self.ckThumb = QtWidgets.QCheckBox(
+            "Thumbnail no export (Re-Generate, Houdini GL)")
+        self.ckThumb.setChecked(False)
+        fS.addRow(self.ckThumb)
+        hbT = QtWidgets.QHBoxLayout()
+        self.spThumbRes = QtWidgets.QSpinBox()
+        self.spThumbRes.setRange(64, 4096)
+        self.spThumbRes.setValue(512)
+        self.spThumbRes.setMinimumHeight(26)
+        self.spSpin = spin(0.0, passo=1.0, dec=1)
+        self.spSpin.setRange(-360.0, 360.0)
+        self.spPitch = spin(0.0, passo=1.0, dec=1)
+        self.spPitch.setRange(-360.0, 360.0)
+        self.spDist = spin(0.0, passo=0.1, dec=2)
+        self.spDist.setRange(0.0, 100000.0)
+        for rotulo, wdg in (("res", self.spThumbRes), ("spin", self.spSpin),
+                            ("pitch", self.spPitch), ("dist", self.spDist)):
+            hbT.addWidget(QtWidgets.QLabel(rotulo))
+            hbT.addWidget(wdg)
+        wrapT = QtWidgets.QWidget()
+        wrapT.setLayout(hbT)
+        fS.addRow("Thumbnail", wrapT)
         raiz.addWidget(gS)
 
         linha3 = QtWidgets.QHBoxLayout()
@@ -294,6 +318,12 @@ class Panel(QtWidgets.QWidget):
                     "tex_renderman": self.ckTexRman.isChecked()}
         over = {"proxy": self.ckProxy.isChecked(),
                 "simproxy": self.ckSimproxy.isChecked()}
+        thumb_cfg = None
+        if self.ckThumb.isChecked():
+            thumb_cfg = {"mode": 1, "res": self.spThumbRes.value(),
+                         "spin": self.spSpin.value(),
+                         "pitch": self.spPitch.value(),
+                         "dist": self.spDist.value()}
 
         # alvos: (geo_path|None, asset_name|None, variants|None)
         alvos = []
@@ -342,7 +372,7 @@ class Panel(QtWidgets.QWidget):
                         asset_name=alvo, renderers=renderers, write=False,
                         geo_path=geo, variants=variantes,
                         tex_dir=tex_dir, disp_scale=self.spDisp.value(),
-                        settings=settings)
+                        settings=settings, thumb_cfg=thumb_cfg)
                     self._builds.append(res)
                     self._diz("✓ Building Asset SubNet: %s ........... %d/%d"
                               % (res.asset_name, i + 1, len(alvos)))
@@ -422,7 +452,12 @@ class Panel(QtWidgets.QWidget):
                     escritos += 1 if ok else 0
                     extra = ""
                     if ok and db:
-                        png = gallery.thumbnail(res.usd_path)
+                        # o autothumbnail do export (GL) ja deixa o png
+                        # na pasta; render externo so' na falta dele
+                        png = os.path.join(os.path.dirname(res.usd_path),
+                                           "thumbnail.png")
+                        if not os.path.isfile(png):
+                            png = gallery.thumbnail(res.usd_path)
                         estado = gallery.registrar(
                             db, res.asset_name, res.usd_path, png,
                             variant_set=res.variant_set)

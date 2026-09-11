@@ -60,7 +60,8 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
                 renderers=("karma", "arnold", "renderman", "vray"), parent=None,
                 lod=None, write=True, disp_scale=0.01,
                 geo_path=None, parts=None, variants=None,
-                tex_dir=None, cleanup=False, settings=None, thumb=False):
+                tex_dir=None, cleanup=False, settings=None, thumb=False,
+                thumb_cfg=None):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 
     asset_name: para pacotes `asset_grain == "object"` (KitBash), o nome do
@@ -85,6 +86,11 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
 
     settings: dict com os ajustes do Asset_USD_Builder (basecolor_gamma,
     normal_scale, subsurface, remap_disp) -- ver materials.DEFAULTS.
+
+    thumb_cfg: config do thumbnail do componentoutput (a secao Thumbnail
+    do proprio no): {"mode": 1 GL / 2 Render, "res": 512, "spin": 0,
+    "pitch": 0, "dist": 0}. Liga o autothumbnail (Re-Generate on Export)
+    -- na UI o GL gera na hora do export, sem render externo.
     """
     res = Result()
     nome = asset_name or asset.name
@@ -213,6 +219,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         prim = _naming.usd_prim_name(nome)
         co = net.createNode("componentoutput", prim)
         co.setColor(hou.Color(0.0, 1.0, 0.0))   # cor do HDA p/ output
+        _config_thumb(co, thumb_cfg)
         co.setInput(0, cm)
         co.parm("rootprim").set("/" + prim)
         if tex_dir:
@@ -301,6 +308,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     prim = _naming.usd_prim_name(nome)
     co = net.createNode("componentoutput", prim)
     co.setColor(hou.Color(0.0, 1.0, 0.0))   # cor do HDA p/ output
+    _config_thumb(co, thumb_cfg)
     co.setInput(0, cm)
     co.parm("rootprim").set("/" + prim)
     if tex_dir:
@@ -330,6 +338,21 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             net.destroy()
 
     return res
+
+
+def _config_thumb(co, cfg):
+    """Aplica a secao Thumbnail do componentoutput (parms medidos:
+    thumbnailmode, autothumbnail, res1/res2, spin/pitch/dist)."""
+    if not cfg:
+        return
+    co.parm("thumbnailmode").set(int(cfg.get("mode", 1)))   # 1 = Houdini GL
+    co.parm("autothumbnail").set(1)      # Re-Generate Thumbnail on Export
+    r = int(cfg.get("res", 512))
+    co.parm("res1").set(r)
+    co.parm("res2").set(r)
+    for parm in ("spin", "pitch", "dist"):
+        if cfg.get(parm) is not None:
+            co.parm(parm).set(float(cfg[parm]))
 
 
 def _liga_output0(net, co):

@@ -379,3 +379,13 @@ Pedidos do Matheus, todos medidos e verificados no USD:
    janela entre BUILD e EXPORT. Verificado: rebuild + re-export escreve.
 5. Vídeos de referência do Matheus (playlists RenderMan Material series,
    7OgyUs3UCyg e K3WbPZZYcg8) anotados p/ a fase de qualidade de shader.
+
+## Config do thumbnail (2026-09-10, sequência)
+
+A seção Thumbnail do componentoutput agora é configurável pela ferramenta
+(parms medidos: thumbnailmode, autothumbnail, res1/res2, spin/pitch/dist):
+`build_asset(thumb_cfg={"mode":1,"res":512,"spin":..,"pitch":..,"dist":..})`
+liga o Re-Generate on Export. Na janela: checkbox "Thumbnail no export
+(Houdini GL)" + res/spin/pitch/dist (desligado por default). O export com
+gallery usa o thumbnail.png que o GL deixa na pasta; render externo só na
+falta dele.
