@@ -290,16 +290,22 @@ def scan(root):
     return a
 
 
-def atlas_material(asset, variant="dark"):
+def atlas_material(asset, variant="light", com_sufixo=False):
     """Junta o jogo de mapas UNICO de um set com atlas compartilhado.
 
     O scanner fragmenta 'X_color_dark'/'X_color_light' em partes separadas
     e deixa os mapas de dado na parte base. Aqui: basecolor da variante
-    pedida + todos os mapas de dado. (Era do batch_kitbash; a janela
-    precisa do mesmo, entao mora na library.)
+    pedida + todos os mapas de dado.
+
+    DEFAULT (decisao do Matheus, 2026-09-10): variante LIGHT, nome SEM
+    sufixo -- variantes duplicavam na gallery e ele aboliu. O nome do
+    material e' a parte-base do atlas (ex.: Post_apocalypse_city);
+    com_sufixo=True volta ao nome '<set>_<variante>' (o lote --variant
+    both ainda usa).
     """
     mapas = {}
     basecolor = None
+    base_parte = None
     for parte, m in asset.parts.items():
         low = parte.lower()
         if low.endswith("_" + variant) and "basecolor" in m:
@@ -308,20 +314,26 @@ def atlas_material(asset, variant="dark"):
         if low.endswith("_dark") or low.endswith("_light"):
             continue                       # a outra variante
         mapas.update(m)
+        base_parte = base_parte or parte
     if basecolor:
         mapas["basecolor"] = basecolor
-    nome = "%s_%s" % (asset.name, variant)
+    if com_sufixo:
+        nome = "%s_%s" % (asset.name, variant)
+    else:
+        nome = base_parte or asset.name
     return nome, mapas
 
 
 def atlas_variants(asset):
     """[(variante, {nome: mapas})] quando o atlas tem dark/light; None se
-    nao ha variantes (ai o material e' um so', via atlas_material)."""
+    nao ha variantes. NAO e' mais o default da ferramenta (variantes
+    duplicavam na gallery; o Matheus aboliu) -- fica para o lote
+    --variant both de quem quiser."""
     tem = [v for v in ("dark", "light")
            if any(p.lower().endswith("_" + v) for p in asset.parts)]
     out = []
     for v in tem:
-        nome, mapas = atlas_material(asset, v)
+        nome, mapas = atlas_material(asset, v, com_sufixo=True)
         if mapas:
             out.append((v, {nome: mapas}))
     return out or None

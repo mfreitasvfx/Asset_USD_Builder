@@ -407,3 +407,23 @@ falta dele.
   no viewport do Matheus), mas o oficial é o padrão — mesma lição do V-Ray.
 - gallery.py: dedup por nome-BASE ('Nome (dark)' conta como 'Nome') — o
   bug dos tiles duplicados de variante.
+
+## Variantes abolidas + gallery incremental confirmada (2026-09-11)
+
+Decisões do Matheus, medidas:
+
+1. **Variantes dark/light FORA do default** ("quando publica duplica...
+   fica a light mas sem o nome"): o fluxo multi-FBX monta UM material da
+   variante LIGHT, nomeado pela parte-base do atlas
+   (Post_apocalypse_city), sem sufixo. `--variant both` continua no lote
+   para quem quiser. componentmaterial sem variantes agora zera o
+   variantname (o default criava variante 'assign' com o nome do nó;
+   vazio deixa o variantSet mtl declarado porém VAZIO — inerte).
+2. **Thumbnail implícito na gallery**: um checkbox só ("Asset Gallery no
+   export") — liga o autothumbnail GL no componentoutput E o registro no
+   banco; a linha res/spin/pitch/dist configura.
+3. **Gallery é INCREMENTAL, medido**: addItem direto no
+   AssetGalleryDataSource persiste, chamadas separadas ACRESCENTAM
+   (exportar aos poucos funciona), repetido dá 'ja existia'. O
+   assetutils.addAsset SEM variantes criava o db e não inseria NADA
+   (calado) — gallery.py voltou ao addItem direto, que é o que funciona.

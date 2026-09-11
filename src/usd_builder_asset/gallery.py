@@ -1,26 +1,25 @@
-"""Thumbnail + Asset Gallery, em cima do utilitario OFICIAL da SideFX.
+"""Thumbnail + Asset Gallery.
 
-`husd.assetutils.AssetGallery` e' o que a propria Layout Asset Gallery usa:
-  - addAsset(usd, ...): poe no banco e, se nao ha' thumbnail, RENDERIZA um
-    (processo externo, funciona headless).
-  - variant_sets=["mtl"]: cada variante (dark/light) vira um tile proprio
-    na gallery, com a selecao de variante automatica ao instanciar --
-    exatamente o esquema do KB3D_Converter.
-  - renderThumbnailForAsset(usd, png): so' o thumbnail.
+REGISTRO: direto no `hou.AssetGalleryDataSource` (addItem + setThumbnail).
+MEDIDO (2026-09-10): o addItem puro persiste e o banco e' INCREMENTAL --
+registrar aos poucos ACRESCENTA, nunca reescreve; instancia nova le tudo
+de volta. Ja o addAsset do husd.assetutils SEM variantes criava o arquivo
+e nao inseria item nenhum (calado) -- e com variantes duplicava tiles.
+Como o Matheus aboliu as variantes ("fica a light, sem o nome"), o
+caminho simples e' tambem o que funciona.
 
 Dedup por nome ANTES de inserir (o video conserta duplicados depois, no
 DB Browser; aqui nao deixamos entrar).
+
+THUMBNAIL: o do export (autothumbnail GL do componentoutput) e' o
+preferido; `thumbnail()` renderiza um via assetutils (processo externo,
+karma) so' quando nao ha png no disco.
 
 Para ver no Houdini: pane Layout Asset Gallery -> Data Source -> o .db.
 """
 import os
 
 import hou
-
-
-def _gal(db_path):
-    from husd import assetutils
-    return assetutils.AssetGallery(str(db_path).replace("\\", "/"))
 
 
 def thumbnail(usd_path, png_path=None):
@@ -33,48 +32,38 @@ def thumbnail(usd_path, png_path=None):
         png_path = os.path.join(os.path.dirname(usd_path),
                                 "thumbnail.png").replace("\\", "/")
     try:
-        _gal(None).renderThumbnailForAsset(usd_path, png_path)
+        from husd import assetutils
+        assetutils.AssetGallery(None).renderThumbnailForAsset(usd_path,
+                                                              png_path)
     except Exception:
         return None
     return png_path if os.path.isfile(png_path) else None
 
 
-def _nomes_existentes(db_path):
-    """Nomes-BASE ja no banco. Um asset com variantes entra como
-    'Nome (dark)' / 'Nome (light)' -- o dedup compara sem o sufixo."""
-    try:
-        ds = hou.AssetGalleryDataSource(str(db_path).replace("\\", "/"))
-        return {ds.label(i).split(" (")[0] for i in ds.itemIds()}
-    except Exception:
-        return set()
-
-
-def registrar(db_path, nome, usd_path, thumb_png=None, variant_set=None):
+def registrar(db_path, nome, usd_path, thumb_png=None):
     """Um asset no banco. Devolve 'novo' ou 'ja existia'."""
-    novos, _d = registrar_lote(db_path, [(nome, usd_path, thumb_png)],
-                               variant_set=variant_set)
+    novos, _d = registrar_lote(db_path, [(nome, usd_path, thumb_png)])
     return "novo" if novos else "ja existia"
 
 
-def registrar_lote(db_path, itens, variant_set=None):
+def registrar_lote(db_path, itens):
     """Registra varios (nome, usd, png). Devolve (novos, dups).
 
-    variant_set: nome do variantSet ("mtl") para abrir cada variante num
-    tile proprio. Sem thumbnail pronto o addAsset RENDERIZA um -- num lote
-    grande isso pesa; gere antes (--thumbs) ou aceite a espera.
+    Incremental: um banco existente e' ACRESCIDO (dedup por nome); um
+    inexistente e' criado. Um escritor por vez -- no lote com --jobs so'
+    o processo pai registra.
     """
-    gal = _gal(db_path)
-    existentes = _nomes_existentes(db_path)
+    ds = hou.AssetGalleryDataSource(str(db_path).replace("\\", "/"))
+    existentes = {ds.label(i) for i in ds.itemIds()}
     novos = dups = 0
     for nome, usd_path, thumb_png in itens:
         if nome in existentes:
             dups += 1
             continue
-        gal.addAsset(str(usd_path).replace("\\", "/"),
-                     thumbnail_file_path=(str(thumb_png).replace("\\", "/")
-                                          if thumb_png else None),
-                     asset_name=nome,
-                     variant_sets=([variant_set] if variant_set else []))
+        item = ds.addItem(nome, file_path=str(usd_path).replace("\\", "/"))
+        if thumb_png and os.path.isfile(thumb_png):
+            with open(thumb_png, "rb") as fh:
+                ds.setThumbnail(item, fh.read())
         existentes.add(nome)
         novos += 1
     return novos, dups

@@ -184,7 +184,8 @@ class Panel(QtWidgets.QWidget):
         fS.addRow(self.ckTexShared)
 
         self.ckGallery = QtWidgets.QCheckBox(
-            "Thumbnail + Asset Gallery (<saida>/asset_gallery.db)")
+            "Asset Gallery no export (thumbnail GL implicito; "
+            "<saida>/asset_gallery.db)")
         self.ckGallery.setChecked(False)
         fS.addRow(self.ckGallery)
 
@@ -193,11 +194,7 @@ class Panel(QtWidgets.QWidget):
         self.ckTexRman.setChecked(False)
         fS.addRow(self.ckTexRman)
 
-        # config do thumbnail (a secao Thumbnail do componentoutput)
-        self.ckThumb = QtWidgets.QCheckBox(
-            "Thumbnail no export (Re-Generate, Houdini GL)")
-        self.ckThumb.setChecked(False)
-        fS.addRow(self.ckThumb)
+        # config do thumbnail (usada quando a Asset Gallery esta ligada)
         hbT = QtWidgets.QHBoxLayout()
         self.spThumbRes = QtWidgets.QSpinBox()
         self.spThumbRes.setRange(64, 4096)
@@ -276,16 +273,16 @@ class Panel(QtWidgets.QWidget):
 
         if self._asset.multi_fbx:
             # set multi-FBX com atlas (Post Apocalypse): a lista mostra os
-            # ARQUIVOS; o Build abre cada um e monta os assets de dentro
+            # ARQUIVOS; o Build abre cada um e monta os assets de dentro.
+            # Variantes abolidas: material unico da LIGHT, sem sufixo.
             self._modo = "multifbx"
             for c in self._asset.geo_files:
                 self.lista.addItem(os.path.basename(c))
-            variantes = library.atlas_variants(self._asset)
-            self._diz("✓ %d arquivos no set, atlas %s. Selecione e "
-                      "2 — BUILD ASSETS."
-                      % (self.lista.count(),
-                         "com variantes " + "/".join(v for v, _p in variantes)
-                         if variantes else "sem variantes"))
+            nome_m, mapas_m = library.atlas_material(self._asset)
+            self._diz("✓ %d arquivos no set; material do atlas: %s (%s). "
+                      "Selecione e 2 — BUILD ASSETS."
+                      % (self.lista.count(), nome_m,
+                         ", ".join(sorted(mapas_m)) or "sem mapas"))
         elif self._profile.asset_grain == "object":
             self._modo = "objetos"
             self._diz("lendo objetos do arquivo…")
@@ -333,14 +330,16 @@ class Panel(QtWidgets.QWidget):
                     "tex_renderman": self.ckTexRman.isChecked()}
         over = {"proxy": self.ckProxy.isChecked(),
                 "simproxy": self.ckSimproxy.isChecked()}
+        # gallery ligada => thumbnail no export implicito (GL) -- um
+        # checkbox so', como o Matheus pediu
         thumb_cfg = None
-        if self.ckThumb.isChecked():
+        if self.ckGallery.isChecked():
             thumb_cfg = {"mode": 1, "res": self.spThumbRes.value(),
                          "spin": self.spSpin.value(),
                          "pitch": self.spPitch.value(),
                          "dist": self.spDist.value()}
 
-        # alvos: (geo_path|None, asset_name|None, variants|None)
+        # alvos: (geo_path|None, asset_name|None, parts|None)
         alvos = []
         if self._modo == "multifbx":
             arquivos = [i.text() for i in self.lista.selectedItems()]
@@ -349,7 +348,9 @@ class Panel(QtWidgets.QWidget):
                 return
             caminhos = {os.path.basename(c): c
                         for c in self._asset.geo_files}
-            variantes = library.atlas_variants(self._asset)
+            # variantes abolidas: UM material da light, sem sufixo
+            nome_m, mapas_m = library.atlas_material(self._asset)
+            partes = {nome_m: mapas_m} if mapas_m else None
             perfil = profiles.custom("kitbash", **over)
             for nome_arq in arquivos:
                 f = caminhos[nome_arq]
@@ -361,7 +362,7 @@ class Panel(QtWidgets.QWidget):
                 self._diz("PROCESSING FILE: %s (%d assets)"
                           % (nome_arq, len(tops)))
                 for top in tops:
-                    alvos.append((f, top, variantes))
+                    alvos.append((f, top, partes))
         elif self._modo == "objetos":
             perfil = profiles.custom(self._profile.key, **over)
             sel = [i.text() for i in self.lista.selectedItems()]
@@ -379,13 +380,13 @@ class Panel(QtWidgets.QWidget):
                   + "-" * 10)
         with hou.InterruptableOperation("USD_Builder_Asset build",
                                         open_interrupt_dialog=True) as op:
-            for i, (geo, alvo, variantes) in enumerate(alvos):
+            for i, (geo, alvo, partes) in enumerate(alvos):
                 op.updateProgress(float(i) / max(1, len(alvos)))
                 try:
                     res = builder.build_asset(
                         self._asset, perfil, out_dir=out,
                         asset_name=alvo, renderers=renderers, write=False,
-                        geo_path=geo, variants=variantes,
+                        geo_path=geo, parts=partes,
                         tex_dir=tex_dir, disp_scale=self.spDisp.value(),
                         settings=settings, thumb_cfg=thumb_cfg)
                     self._builds.append(res)
@@ -478,7 +479,7 @@ class Panel(QtWidgets.QWidget):
                             png = gallery.thumbnail(res.usd_path)
                         estado = gallery.registrar(
                             db, res.asset_name, res.usd_path, png,
-                            variant_set=res.variant_set)
+                            )
                         extra = "  [gallery: %s%s]" % (
                             estado, "" if png else ", sem thumbnail")
                     self._diz("✓ EXPORT: %s ........... %d/%d%s"

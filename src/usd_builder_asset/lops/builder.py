@@ -295,6 +295,9 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     cm = net.createNode("componentmaterial", "assign")
     cm.setInput(0, cg)
     cm.setInput(1, ml)
+    # sem variantes o default criava um variantSet 'mtl' com uma variante
+    # com o NOME DO NO ('assign') -- ruido; vazio nao autora variantSet
+    cm.parm("variantname").set("")
     cm.parm("nummaterials").set(len(res.parts_bound))
     for i, parte in enumerate(res.parts_bound, start=1):
         # material unico: o asset inteiro; senao o subset com o mesmo nome

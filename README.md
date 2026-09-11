@@ -27,7 +27,7 @@ pacotes do estúdio:
 | esquema | exemplo | o que muda |
 |---|---|---|
 | **Um FBX, atlas nomeado** | KitBash3D Lunar Base | 1 arquivo com 79 objetos; `shop_materialpath` casa 100% com as texturas → bind por nome |
-| **Multi-FBX, atlas único** | Post Apocalypse (vídeo Arcanacom) | 64 FBX numerados; material do FBX é lixo (`01 - Default`) → UM material do atlas, com variantes dark/light |
+| **Multi-FBX, atlas único** | Post Apocalypse (vídeo Arcanacom) | 64 FBX numerados; material do FBX é lixo (`01 - Default`) → UM material do atlas (basecolor **light**, sem sufixo) |
 | **Pasta = asset** | Megascans, Maxtree | material único ou por parte; LODs; plantas ligam thin-walled+SSS |
 
 O scanner (`library.py`) diz o que a pasta é; o perfil (`profiles.py`) dá os
@@ -35,11 +35,12 @@ defaults; e **o usuário sobrepõe o modo**: proxy, simproxy, center,
 unit_scale, renderers, variantes (`profiles.custom()` / flags do lote /
 checkboxes da janela).
 
-Do KB3D_Converter_2.0 (vídeo do lucaroe) absorvemos: o **collect com
+Do KB3D_Converter_2.0 (vídeo do lucaroe) absorvemos o **collect com
 material flag** contendo um shader por renderer ("escolhi dois renderizadores
-→ um collect com dois materiais"), e as **variantes de material como
-variantes USD** — `componentmaterial` encadeados com `variantname`, dark e
-light no MESMO asset.
+→ um collect com dois materiais"). As variantes dark/light como variantes
+USD existem no código (`--variant both` no lote), mas **não são o default**:
+duplicavam os assets na Asset Gallery, então o padrão é a light, sem sufixo
+no nome.
 
 O lote do Post Apocalypse usa o passo **GenerateBGEO** do vídeo do Arcanacom:
 um FBX de props com centenas de objetos é convertido para bgeo UMA vez, em

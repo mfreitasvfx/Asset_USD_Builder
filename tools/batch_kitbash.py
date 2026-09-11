@@ -94,7 +94,7 @@ def _paralelo(a):
         for ln in fim:
             print("   ", ln)
     if a.gallery:
-        _gallery_pass(a.saida, "mtl" if a.variant == "both" else None)
+        _gallery_pass(a.saida)
     return ret
 
 
@@ -103,7 +103,7 @@ def main():
     ap.add_argument("raiz")
     ap.add_argument("saida")
     ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--variant", default="both",
+    ap.add_argument("--variant", default="light",
                     choices=["both", "dark", "light"],
                     help="both = variantes USD dark+light no mesmo asset "
                          "(esquema KB3D_Converter_2.0)")
@@ -153,7 +153,7 @@ def main():
     if a.variant == "both":
         variantes = []
         for v in ("dark", "light"):
-            nome_v, mapas_v = atlas_material(asset, v)
+            nome_v, mapas_v = atlas_material(asset, v, com_sufixo=True)
             if mapas_v:
                 variantes.append((v, {nome_v: mapas_v}))
         if not variantes:
@@ -164,7 +164,7 @@ def main():
         print("variantes:", [v for v, _ in variantes])
     else:
         variantes = None
-        mat_nome, mapas = atlas_material(asset, a.variant)
+        mat_nome, mapas = atlas_material(asset, a.variant, com_sufixo=False)
         print("set      :", asset.name)
         print("material :", mat_nome, "->", sorted(mapas))
         if not mapas:
@@ -238,11 +238,11 @@ def main():
 
     # gallery so' no processo "dono" (sem --slice): um escritor no SQLite
     if a.gallery and a.slice is None:
-        _gallery_pass(a.saida, "mtl" if a.variant == "both" else None)
+        _gallery_pass(a.saida)
     return 1 if falhas else 0
 
 
-def _gallery_pass(saida, variant_set=None):
+def _gallery_pass(saida):
     from usd_builder_asset import gallery
     db = os.path.join(saida, "asset_gallery.db").replace("\\", "/")
     itens = []
@@ -253,7 +253,7 @@ def _gallery_pass(saida, variant_set=None):
             continue
         png = os.path.join(d, "thumbnail.png")
         itens.append((pasta, usd, png if os.path.isfile(png) else None))
-    novos, dups = gallery.registrar_lote(db, itens, variant_set=variant_set)
+    novos, dups = gallery.registrar_lote(db, itens)
     print("asset gallery: %d novos, %d ja existiam -> %s"
           % (novos, dups, db))
 
