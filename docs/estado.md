@@ -444,3 +444,16 @@ Feedback do teste do Matheus no viewport:
 3. atlas_material: parte-base = nome mais CURTO, e partes longas
    atualizam primeiro (arquivos extras de teste na pasta de texturas nao
    batizam o material nem sobrepoem os mapas da base).
+
+## O cinza do Karma: bind perdido, nao material (2026-09-11, cont.)
+
+O Matheus pegou no viewport: tudo cinza, "parece que o material library
+nao le". Diagnostico por RENDER headless A/B (husk + Karma CPU, media de
+canais): o material estava COMPLETO no USD, mas havia ZERO bindings.
+Causa: meu `variantname=""` no componentmaterial (da limpeza da variante
+'assign') -- o no SEMPRE autora o bind DENTRO de uma variante, e sem nome
+a edicao se perde, calada. Nao existe toggle para desligar (medido:
+parms sao so' variantset/variantname). Fix: variantname='default'.
+Verificado: bind presente e render com cor (desvio 0.0108 vs 0.0000).
+De quebra: o contexto kma do builder oficial do Karma renderiza certo --
+nunca foi o problema.

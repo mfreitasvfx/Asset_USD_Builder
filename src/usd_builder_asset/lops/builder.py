@@ -295,9 +295,11 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     cm = net.createNode("componentmaterial", "assign")
     cm.setInput(0, cg)
     cm.setInput(1, ml)
-    # sem variantes o default criava um variantSet 'mtl' com uma variante
-    # com o NOME DO NO ('assign') -- ruido; vazio nao autora variantSet
-    cm.parm("variantname").set("")
+    # o componentmaterial SEMPRE autora o bind dentro de uma variante
+    # (medido: variantname VAZIO perde o bind -- render cinza, o bug que o
+    # Matheus pegou). Sem toggle para desligar, o nome vira 'default'
+    # em vez do nome do no ('assign').
+    cm.parm("variantname").set("default")
     cm.parm("nummaterials").set(len(res.parts_bound))
     for i, parte in enumerate(res.parts_bound, start=1):
         # material unico: o asset inteiro; senao o subset com o mesmo nome
