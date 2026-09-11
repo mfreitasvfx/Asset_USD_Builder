@@ -509,3 +509,25 @@ na malha DESTA variacao. Agora TODA parte das texturas vira material na
 explicito, so nas partes com subset na malha. Verificado no Zea: 12
 materiais no USD, 6 bindings. As outras variacoes da mesma planta acham
 seus materiais prontos.
+
+## V-Ray: BRDFBump e translucency como COR (2026-09-11, cont.)
+
+O Matheus pediu pesquisa NOS MANUAIS antes de mexer -- feito
+(docs.chaos.com):
+
+1. **Normal via V-Ray Bump (BRDFBump)** -- manual do V-Ray for Houdini:
+   e' um WRAPPER entre o material base e a saida (base_brdf <- brdf;
+   bump_tex_color <- mapa; map_type '1' = Normal Tangent; bump amount =
+   intensidade). O bump_map direto no BRDFVRayMtl era a forma antiga --
+   provavel causa de materiais nao aparecerem. Rede agora igual a do
+   print do Matheus (Cosmos).
+2. **Translucency e' COR, nao intensity** -- o Matheus apontou e o
+   SDK confirma: o plugin tem translucency_color (Value/texturavel),
+   mas o VOP do vfh 21.0 NAO expoe como input (medido); os slots
+   texturaveis da secao sao fog_color_tex (cor) + translucency_amount.
+   Wiring novo: mapa (sRGB->ACEScg via MetaImageFile OCIO) -> cc ->
+   fog_color_tex; translucency_amount ESCALAR = subsurface (0.25).
+   O remap->amount antigo morreu.
+   Verificado no USD do Zea: 12x BRDFBump (map_type 1, base_brdf
+   conectado), folhas com fog_color_tex.connect + translucency=6 +
+   amount=0.25.
