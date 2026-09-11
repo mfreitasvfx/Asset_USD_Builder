@@ -58,8 +58,15 @@ class Panel(QtWidgets.QWidget):
 
     def _montar(self):
         raiz = QtWidgets.QVBoxLayout(self)
+        # duas abas como o HDA: USD BUILDER (fluxo) e SETTINGS (ajustes +
+        # UPDATE MATERIALS) -- pedido do Matheus
+        abas = QtWidgets.QTabWidget()
+        raiz.addWidget(abas, 2)
 
-        # fonte
+        # ============ aba USD BUILDER ============
+        w1 = QtWidgets.QWidget()
+        v1 = QtWidgets.QVBoxLayout(w1)
+
         gF = QtWidgets.QGroupBox("Fonte")
         fF = QtWidgets.QFormLayout(gF)
         linha = QtWidgets.QHBoxLayout()
@@ -78,7 +85,7 @@ class Panel(QtWidgets.QWidget):
         self.lbResumo = QtWidgets.QLabel("—")
         self.lbResumo.setWordWrap(True)
         fF.addRow(self.lbResumo)
-        raiz.addWidget(gF)
+        v1.addWidget(gF)
 
         # objetos (kitbash) ou arquivos (set multi-FBX)
         gO = QtWidgets.QGroupBox("Objetos / arquivos (KitBash)")
@@ -91,18 +98,16 @@ class Panel(QtWidgets.QWidget):
         self.lista.setSelectionMode(
             QtWidgets.QAbstractItemView.ExtendedSelection)
         vO.addWidget(self.lista)
-        raiz.addWidget(gO, 1)
+        v1.addWidget(gO, 1)
 
-        # opcoes
         gR = QtWidgets.QGroupBox("Renderers e saida")
         fR = QtWidgets.QFormLayout(gR)
         hb = QtWidgets.QHBoxLayout()
         self.cks = {}
         for r in RENDERERS:
             ck = QtWidgets.QCheckBox(r)
-            # "tirei o arnold por enquanto, esquece ele" (2026-09-10)
-            ck.setChecked(r != "arnold")
-            self.cks[r] = ck
+            ck.setChecked(False)   # "desliga os renderizadores" -- escolha
+            self.cks[r] = ck       # por rodada e' do usuario
             hb.addWidget(ck)
         wrapR = QtWidgets.QWidget()
         wrapR.setLayout(hb)
@@ -119,14 +124,25 @@ class Panel(QtWidgets.QWidget):
         wrap2 = QtWidgets.QWidget()
         wrap2.setLayout(linha2)
         fR.addRow("Pasta de saida", wrap2)
+        v1.addWidget(gR)
 
-        self.ckTexShared = QtWidgets.QCheckBox(
-            "Texturas compartilhadas (UMA copia em <saida>/textures)")
-        self.ckTexShared.setChecked(False)   # "deixa as opcoes todas desligadas"
-        fR.addRow(self.ckTexShared)
-        raiz.addWidget(gR)
+        linha3 = QtWidgets.QHBoxLayout()
+        self.btBuild = QtWidgets.QPushButton("2 — BUILD ASSETS")
+        self.btBuild.setMinimumHeight(34)
+        self.btBuild.clicked.connect(self._build)
+        linha3.addWidget(self.btBuild)
+        self.btExport = QtWidgets.QPushButton("3 — EXPORT USD's")
+        self.btExport.setMinimumHeight(34)
+        self.btExport.clicked.connect(self._export)
+        linha3.addWidget(self.btExport)
+        wrap3 = QtWidgets.QWidget()
+        wrap3.setLayout(linha3)
+        v1.addWidget(wrap3)
+        abas.addTab(w1, "USD BUILDER")
 
-        # settings do Asset_USD_Builder (aba IMG SETTINGS)
+        # ============ aba SETTINGS ============
+        w2 = QtWidgets.QWidget()
+        v2 = QtWidgets.QVBoxLayout(w2)
         gS = QtWidgets.QGroupBox("Settings")
         fS = QtWidgets.QFormLayout(gS)
 
@@ -162,6 +178,11 @@ class Panel(QtWidgets.QWidget):
         wrapP.setLayout(hbP)
         fS.addRow("Branches", wrapP)
 
+        self.ckTexShared = QtWidgets.QCheckBox(
+            "Texturas compartilhadas (UMA copia em <saida>/textures)")
+        self.ckTexShared.setChecked(False)   # opcoes todas desligadas
+        fS.addRow(self.ckTexShared)
+
         self.ckGallery = QtWidgets.QCheckBox(
             "Thumbnail + Asset Gallery (<saida>/asset_gallery.db)")
         self.ckGallery.setChecked(False)
@@ -195,28 +216,19 @@ class Panel(QtWidgets.QWidget):
         wrapT = QtWidgets.QWidget()
         wrapT.setLayout(hbT)
         fS.addRow("Thumbnail", wrapT)
-        raiz.addWidget(gS)
+        v2.addWidget(gS)
 
-        linha3 = QtWidgets.QHBoxLayout()
-        self.btBuild = QtWidgets.QPushButton("2 — BUILD ASSETS")
-        self.btBuild.setMinimumHeight(34)
-        self.btBuild.clicked.connect(self._build)
-        linha3.addWidget(self.btBuild)
         self.btUpdate = QtWidgets.QPushButton("UPDATE MATERIALS")
         self.btUpdate.setMinimumHeight(34)
         self.btUpdate.setToolTip(
             "Reconstroi so' os materiais dos builds da etapa 2 com os "
             "Settings atuais (geometria e binds ficam)")
         self.btUpdate.clicked.connect(self._update_materials)
-        linha3.addWidget(self.btUpdate)
-        self.btExport = QtWidgets.QPushButton("3 — EXPORT USD's")
-        self.btExport.setMinimumHeight(34)
-        self.btExport.clicked.connect(self._export)
-        linha3.addWidget(self.btExport)
-        wrap3 = QtWidgets.QWidget()
-        wrap3.setLayout(linha3)
-        raiz.addWidget(wrap3)
+        v2.addWidget(self.btUpdate)
+        v2.addStretch(1)
+        abas.addTab(w2, "SETTINGS")
 
+        # log embaixo, fora das abas (as duas escrevem nele)
         self.log = QtWidgets.QPlainTextEdit()
         self.log.setReadOnly(True)
         raiz.addWidget(self.log, 1)
@@ -308,6 +320,9 @@ class Panel(QtWidgets.QWidget):
         self._profile, _e, _a = profiles.plan(self._asset)
 
         renderers = tuple(r for r, ck in self.cks.items() if ck.isChecked())
+        if not renderers:
+            self._diz("marque ao menos um renderer (aba USD BUILDER).")
+            return
         out = self.edSaida.text().strip() or None
         tex_dir = None
         if out and self.ckTexShared.isChecked():
@@ -399,6 +414,9 @@ class Panel(QtWidgets.QWidget):
         from usd_builder_asset import log
         from usd_builder_asset.lops import builder
         renderers = tuple(r for r, ck in self.cks.items() if ck.isChecked())
+        if not renderers:
+            self._diz("marque ao menos um renderer (aba USD BUILDER).")
+            return
         settings = {"basecolor_gamma": self.spGamma.value(),
                     "normal_scale": self.spNormal.value(),
                     "subsurface": self.spSss.value(),

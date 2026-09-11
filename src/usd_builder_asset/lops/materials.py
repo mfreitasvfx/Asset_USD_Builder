@@ -88,26 +88,21 @@ class _W(object):
 
 
 def _karma_subnet(parent, nome):
-    """Subnet de material MaterialX com o minimo que faz publicar certo.
+    """Builder OFICIAL do Karma (voptoolutils, o mesmo da shelf tool).
 
-    rendercontext 'mtlx' (medido) + forcechildren (receita Rebelway).
+    A licao do V-Ray vale aqui: usar a forma que o proprio renderer
+    monta. Sai o 'karmamaterial' do print do Matheus: contexto 'kma',
+    outputs surface/displacement/properties (+ preview automatico), com
+    mtlxstandard_surface, mtlxdisplacement e kma_material_properties ja
+    dentro e ligados. (O subnet manual com ctx 'mtlx' tambem renderizava
+    -- medido -- mas o oficial e' o padrao e traz o properties.)
     """
+    import voptoolutils
     sub = parent.createNode("subnet", nome)
-    g = sub.parmTemplateGroup()
-    f = hou.FolderParmTemplate("folder1", "Material Builder",
-                               folder_type=hou.folderType.Collapsible,
-                               tags={"sidefx::shader_isparm": "0"})
-    rc = hou.properties.parmTemplate("vopui", "shader_rendercontextname")
-    rc.setDefaultValue(["mtlx"])
-    f.addParmTemplate(rc)
-    fc = hou.ToggleParmTemplate("shader_forcechildren",
-                                "Force Translation of Children",
-                                default_value=True)
-    fc.setTags({"sidefx::shader_isparm": "0", "spare_category": "Shader"})
-    f.addParmTemplate(fc)
-    g.append(f)
-    sub.setParmTemplateGroup(g)
-    sub.setMaterialFlag(True)
+    voptoolutils._setupMtlXBuilderSubnet(
+        subnet_node=sub, name=nome,
+        mask=voptoolutils.KARMAMTLX_TAB_MASK,
+        folder_label="Karma Material Builder", render_context="kma")
     return sub
 
 
@@ -117,11 +112,9 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
     w = w or _W()
     s = _cfg(settings)
     sub = _karma_subnet(parent, "karma_" + name)
-    out = sub.node("suboutput1")
-    surf = sub.createNode("mtlxstandard_surface", "surface")
-    out.setInput(0, surf, 0)
-    w.set(out, "name1", "surface")
-    disp = None
+    # o builder oficial ja traz surface/displacement ligados no output
+    surf = sub.node("mtlxstandard_surface")
+    surf.setName("surface")            # nomes basicos, como o Matheus pediu
 
     def image(role, path, signature):
         img = sub.createNode("mtlximage", role)
@@ -166,6 +159,7 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.connect(nm, "in", img, "out")
         w.connect(surf, "normal", nm, "out")
 
+    disp = sub.node("mtlxdisplacement")   # ja vem ligado no output oficial
     if "displacement" in maps:
         img = image("height", maps["displacement"], "default")
         # o remap fica SEMPRE no caminho (neutro sem remap_disp) -- e' a
@@ -179,11 +173,12 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
             w.set(rm, "outlow", ol)
             w.set(rm, "outhigh", oh)
         w.connect(rm, "in", img, "out")
-        disp = sub.createNode("mtlxdisplacement", "displacement")
-        w.set(disp, "scale", disp_scale)
-        w.connect(disp, "displacement", rm, "out")
-        out.setInput(1, disp, 0)
-        w.set(out, "name2", "displacement")
+        if disp is not None:
+            disp.setName("displacement")
+            w.set(disp, "scale", disp_scale)
+            w.connect(disp, "displacement", rm, "out")
+    elif disp is not None:
+        disp.destroy()                    # sem mapa, sem galho morto
 
     if plant and "translucency" in maps:
         img = image("translucency", maps["translucency"], "color3")

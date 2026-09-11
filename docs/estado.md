@@ -389,3 +389,21 @@ liga o Re-Generate on Export. Na janela: checkbox "Thumbnail no export
 (Houdini GL)" + res/spin/pitch/dist (desligado por default). O export com
 gallery usa o thumbnail.png que o GL deixa na pasta; render externo só na
 falta dele.
+
+## Abas na janela + Karma no builder oficial (2026-09-10, madrugada 2)
+
+- Janela em DUAS ABAS como o HDA: "USD BUILDER" (fonte, lista, renderers,
+  saída, botões 1/2/3) e "SETTINGS" (ajustes, branches, opções, thumbnail
+  e o UPDATE MATERIALS). Log embaixo, fora das abas.
+- Renderers TODOS desligados por default (pedido; guarda avisa se Build
+  sem nenhum marcado).
+- Karma migrou para o builder OFICIAL (voptoolutils._setupMtlXBuilderSubnet,
+  KARMAMTLX_TAB_MASK, contexto 'kma') — a forma do print do Matheus
+  ('karmamaterial' com surface/displacement/properties). USD agora publica
+  outputs:kma:surface + preview; ganha o material_properties (render
+  settings por material). O mtlxdisplacement default é reusado quando há
+  mapa e destruído quando não há. Nomes básicos mantidos (surface,
+  basecolor, ...). O subnet manual ctx 'mtlx' também renderizava (medido
+  no viewport do Matheus), mas o oficial é o padrão — mesma lição do V-Ray.
+- gallery.py: dedup por nome-BASE ('Nome (dark)' conta como 'Nome') — o
+  bug dos tiles duplicados de variante.
