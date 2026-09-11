@@ -79,6 +79,20 @@ class Panel(QtWidgets.QWidget):
         wrap = QtWidgets.QWidget()
         wrap.setLayout(linha)
         fF.addRow("Pasta do asset", wrap)
+
+        # perfil: Auto (o scanner decide) ou o usuario MARCA -- "nao seria
+        # melhor eu indicar isso marcando?" (Matheus). Evermotion/SpeedTree/
+        # Fab entram quando houver pasta real para medir.
+        self.cbPerfil = QtWidgets.QComboBox()
+        self.cbPerfil.addItem("Auto — o scanner decide", "auto")
+        for chave, rotulo in (("megascans", "Megascans"),
+                              ("maxtree", "Maxtree (plantas)"),
+                              ("kitbash", "KitBash3D"),
+                              ("construido", "Ja construido"),
+                              ("generico", "Generico")):
+            self.cbPerfil.addItem(rotulo, chave)
+        fF.addRow("Perfil", self.cbPerfil)
+
         self.btScan = QtWidgets.QPushButton("1 — SCAN")
         self.btScan.clicked.connect(self._scan)
         fF.addRow(self.btScan)
@@ -163,7 +177,7 @@ class Panel(QtWidgets.QWidget):
         self.spDisp = spin(0.01)
         self.spGamma = spin(1.0)
         self.spNormal = spin(1.0)
-        self.spSss = spin(1.0)
+        self.spSss = spin(0.25)
         fS.addRow("Displacement Scale", self.spDisp)
         fS.addRow("BaseColor Gamma", self.spGamma)
         fS.addRow("Normal Scale", self.spNormal)
@@ -262,7 +276,14 @@ class Panel(QtWidgets.QWidget):
         self._diz("-" * 10 + " START SCANNING " + "-" * 10)
         try:
             self._asset = library.scan(pasta)
-            self._profile, _etapas, avisos = profiles.plan(self._asset)
+            escolha = self.cbPerfil.currentData()
+            if escolha and escolha != "auto":
+                # o usuario marcou: o perfil escolhido manda
+                self._profile = profiles.custom(escolha)
+                avisos = ["perfil marcado pelo usuario: %s"
+                          % self._profile.label]
+            else:
+                self._profile, _etapas, avisos = profiles.plan(self._asset)
         except Exception:
             self._diz(traceback.format_exc())
             return
@@ -314,7 +335,12 @@ class Panel(QtWidgets.QWidget):
         from usd_builder_asset.lops import builder
         # re-scan barato: garante que edicoes de codigo valem ja
         self._asset = library.scan(self._asset.root)
-        self._profile, _e, _a = profiles.plan(self._asset)
+        escolha = self.cbPerfil.currentData()
+        if escolha and escolha != "auto":
+            base_key = escolha            # o usuario marcou: ele manda
+        else:
+            self._profile, _e, _a = profiles.plan(self._asset)
+            base_key = self._profile.key
 
         renderers = tuple(r for r, ck in self.cks.items() if ck.isChecked())
         if not renderers:
@@ -351,7 +377,7 @@ class Panel(QtWidgets.QWidget):
             # variantes abolidas: UM material da light, sem sufixo
             nome_m, mapas_m = library.atlas_material(self._asset)
             partes = {nome_m: mapas_m} if mapas_m else None
-            perfil = profiles.custom("kitbash", **over)
+            perfil = profiles.custom(base_key if escolha != "auto" else "kitbash", **over)
             for nome_arq in arquivos:
                 f = caminhos[nome_arq]
                 try:
@@ -364,14 +390,14 @@ class Panel(QtWidgets.QWidget):
                 for top in tops:
                     alvos.append((f, top, partes))
         elif self._modo == "objetos":
-            perfil = profiles.custom(self._profile.key, **over)
+            perfil = profiles.custom(base_key, **over)
             sel = [i.text() for i in self.lista.selectedItems()]
             if not sel:
                 self._diz("selecione ao menos um objeto da lista.")
                 return
             alvos = [(None, nome, None) for nome in sel]
         else:
-            perfil = profiles.custom(self._profile.key, **over)
+            perfil = profiles.custom(base_key, **over)
             alvos = [(None, None, None)]
 
         self._builds = []

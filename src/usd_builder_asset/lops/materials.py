@@ -42,7 +42,7 @@ _COR = {"basecolor", "emission", "translucency"}
 DEFAULTS = {
     "basecolor_gamma": 1.0,
     "normal_scale": 1.0,
-    "subsurface": 1.0,      # nosso valor medido p/ plantas (HDA usa 0.25)
+    "subsurface": 0.25,     # Jonas Noell E o HDA usam 0.25 ("nunca perto de 1")
     "remap_disp": None,     # ex.: (0.0, 1.0, -0.5, 0.5)
     "tex_renderman": False,  # etapa .tex ACEScg do HDA (texconv.py)
 }

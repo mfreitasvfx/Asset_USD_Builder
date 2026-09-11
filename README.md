@@ -70,6 +70,23 @@ mtl {dark, light} e outputs vray+mtlx+preview.
   cada rede depois de escrever (`cleanup`) e `--jobs N` roda N processos
   hython em paralelo, cada um com uma fatia dos arquivos.
 
+### As cores dos nós (o semáforo do Asset_USD_Builder)
+
+Lidas do código do HDA e aplicadas em tudo que a ferramenta monta:
+
+| nó | cor | significa |
+|---|---|---|
+| subnet `USD_Builder_Asset_*` | **azul** `(0.29, 0.56, 0.89)` | objeto |
+| idem | **laranja** `(1.0, 0.6, 0.0)` | objeto **com variantes** |
+| idem | **verde-oliva** `(0.5, 0.7, 0.3)` | planta (workflow de folha) |
+| `geo` (componentgeometry) | amarelo-palha `(1, 1, 0.5)` | — |
+| materiallibrary | **verde-claro** `(0.5, 1, 0.5)` | materiais montados |
+| idem | **vermelho** `(1, 0, 0)` | nenhuma textura encontrada |
+| componentoutput | **verde** `(0, 1, 0)` | — |
+
+Se um asset seu "era laranja e virou azul": ele tinha variantes dark/light
+e agora sai como objeto de material único — é a leitura certa.
+
 ### A janela: etapas numeradas, como o Asset_USD_Builder
 
 `1 — SCAN` lê a pasta e lista os objetos; `2 — BUILD ASSETS` monta a rede

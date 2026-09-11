@@ -457,3 +457,28 @@ parms sao so' variantset/variantname). Fix: variantname='default'.
 Verificado: bind presente e render com cor (desvio 0.0108 vs 0.0000).
 De quebra: o contexto kma do builder oficial do Karma renderiza certo --
 nunca foi o problema.
+
+## Maxtree + seletor de perfil + receita do Jonas nas folhas (2026-09-11)
+
+1. **Seletor de Perfil na janela** ("não seria melhor eu indicar isso
+   marcando?"): combo Auto/Megascans/Maxtree/KitBash/Construido/Generico;
+   quando marcado, ele manda no scan E no build (base_key; cuidado: key
+   de profiles.custom ganha '+custom', nunca reusar como base).
+   Evermotion/SpeedTree/Fab entram quando houver pasta real para medir.
+2. **Zea mays (Maxtree) verificado**: perfil auto, 6 materiais, 6 binds
+   por nome, folhas com thin_walled+subsurface (karma) e translucency=6
+   +refract_thin_walled (vray); render headless VERDE dominante (desvio
+   0.0357). Build 9 s.
+3. **Video das folhas do Jonas Noell (e2KqOfraUyw) extraido via /watch**
+   (o skill do Matheus funciona) e a receita aplicada no build_vray:
+   - reflect BRANCO PURO quando ha mapa de rough/gloss (o default preto
+     = zero specular; estava faltando em TODOS os nossos VRayMtl!)
+   - opacity_mode Clip ('1') nas plantas (folha nao tem semi-transparente)
+   - subsurface default 0.25 (Jonas: "nunca perto de 1"; o HDA tambem usa
+     0.25) -- karma weight e translucency do vray via remap no caminho
+   - VRay2SidedMtl para frente/verso DIFERENTES: anotado, so quando o
+     asset tiver textura de verso (Maxtree nao tem)
+   Confirmado no USD: reflect (1,1,1,1) x6, opacity_mode 1 x2,
+   translucency 6 x2.
+4. README: legenda das cores dos nos (o laranja->azul que o Matheus viu =
+   variantes -> objeto unico).
