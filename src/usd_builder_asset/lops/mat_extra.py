@@ -89,14 +89,46 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
         w.connect(tf, "input", src, "resultRGB")
         return tf
 
+    def cc(role, src):
+        # colorcorrect neutro no caminho de toda COR ("se eu quiser
+        # alterar valor" -- pedido do Matheus)
+        n = sub.createNode("pxrcolorcorrect::3.0", role + "_cc")
+        w.connect(n, "inputRGB", src, "resultRGB")
+        return n
+
+    def remap(role, src):
+        # remap neutro no caminho de todo DADO
+        n = sub.createNode("pxrremap::3.0", role + "_remap")
+        w.connect(n, "inputRGB", src, "resultRGB")
+        return n
+
+    base = None
     if "basecolor" in maps:
         img = image("basecolor", maps["basecolor"], True)
-        w.connect(surf, "diffuseColor", img, "resultRGB")
+        base = cc("basecolor", img)
+        g = s["basecolor_gamma"]
+        w.set(base, "gamma", (g, g, g))
+
+    # metallic via PxrMetallicWorkflow (achado do Matheus: e' assim que o
+    # material builder liga metal no PxrSurface)
+    mw = None
+    if "metalness" in maps:
+        mimg = image("metalness", maps["metalness"], False)
+        mrm = remap("metalness", mimg)
+        mw = sub.createNode("pxrmetallicworkflow::3.0", "metallic_workflow")
+        if base is not None:
+            w.connect(mw, "baseColor", base, "resultRGB")
+        w.connect(mw, "metallic", mrm, "resultR")
+        w.connect(surf, "diffuseColor", mw, "resultDiffuseRGB")
+        w.connect(surf, "specularEdgeColor", mw, "resultSpecularEdgeRGB")
+        w.connect(surf, "specularFaceColor", mw, "resultSpecularFaceRGB")
+    elif base is not None:
+        w.connect(surf, "diffuseColor", base, "resultRGB")
 
     if "roughness" in maps:
         img = image("roughness", maps["roughness"], False)
         w.connect(surf, "specularRoughness",
-                  tofloat("roughness", img), "resultF")
+                  tofloat("roughness", remap("roughness", img)), "resultF")
     elif "glossiness" in maps:
         img = image("glossiness", maps["glossiness"], False)
         inv = sub.createNode("pxrinvert", "invert")
@@ -107,21 +139,20 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
 
     if "specular" in maps:
         img = image("specular", maps["specular"], True)
-        w.connect(surf, "specularEdgeColor", img, "resultRGB")
-
-    if "metalness" in maps:
-        image("metalness", maps["metalness"], False)  # solto, como no HDA
-        w.warn("PxrSurface nao tem input de metallic; mapa de '%s' criado "
-               "sem ligar (igual ao Asset_USD_Builder). Metal fiel em "
-               "RenderMan vem com o LAMA depois." % name)
+        if mw is not None:
+            w.connect(mw, "specular", cc("specular", img), "resultRGB")
+        else:
+            w.connect(surf, "specularEdgeColor",
+                      cc("specular", img), "resultRGB")
 
     if "opacity" in maps:
         img = image("opacity", maps["opacity"], False)
-        w.connect(surf, "presence", tofloat("opacity", img), "resultF")
+        w.connect(surf, "presence",
+                  tofloat("opacity", remap("opacity", img)), "resultF")
 
     if "emission" in maps:
         img = image("emission", maps["emission"], True)
-        w.connect(surf, "glowColor", img, "resultRGB")
+        w.connect(surf, "glowColor", cc("emission", img), "resultRGB")
         w.set(surf, "glowGain", 1.0)
 
     if "normal" in maps:
@@ -145,13 +176,10 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
 
     if plant and "translucency" in maps:
         img = image("translucency", maps["translucency"], True)
-        w.connect(surf, "diffuseTransmitColor", img, "resultRGB")
+        w.connect(surf, "diffuseTransmitColor",
+                  cc("translucency", img), "resultRGB")
         w.set(surf, "diffuseTransmitGain", s["subsurface"])
         w.set(surf, "diffuseDoubleSided", 1)
-
-    if s["basecolor_gamma"] != 1.0:
-        w.warn("basecolor_gamma custom nao aplicado em RenderMan "
-               "(PxrTexture ja lineariza); '%s'" % name)
 
     sub.layoutChildren()
     return sub
@@ -180,33 +208,51 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.connect(t, "bitmap", buf, "bitmap")
         return t
 
+    def cc(role, t):
+        # colorcorrect neutro no caminho da cor (ajuste manual)
+        n = sub.createNode("VRayNodeColorCorrection", role + "_cc")
+        w.connect(n, "texture_map", t, "color")
+        return n                       # sai em 'out_color'
+
+    def remap(role, t):
+        # remap neutro no caminho do dado (ajuste manual)
+        n = sub.createNode("VRayNodeTexRemap", role + "_remap")
+        w.connect(n, "input_value", t, "intensity")
+        return n                       # sai em 'value'
+
     if "basecolor" in maps:
         w.connect(brdf, "diffuse",
-                  tex("basecolor", maps["basecolor"], cor=True), "color")
+                  cc("basecolor", tex("basecolor", maps["basecolor"],
+                                      cor=True)), "out_color")
     if "roughness" in maps:
         w.set(brdf, "option_use_roughness", "1")
         w.connect(brdf, "reflect_glossiness",
-                  tex("roughness", maps["roughness"]), "intensity")
+                  remap("roughness", tex("roughness", maps["roughness"])),
+                  "value")
     elif "glossiness" in maps:
         w.connect(brdf, "reflect_glossiness",
-                  tex("glossiness", maps["glossiness"]), "intensity")
+                  remap("glossiness", tex("glossiness", maps["glossiness"])),
+                  "value")
     if "metalness" in maps:
-        w.connect(brdf, "metalness", tex("metalness", maps["metalness"]),
-                  "intensity")
+        w.connect(brdf, "metalness",
+                  remap("metalness", tex("metalness", maps["metalness"])),
+                  "value")
     if "normal" in maps:
         w.set(brdf, "bump_type", "1")
         if s["normal_scale"] != 1.0 and brdf.parm("bump_amount") is not None:
             w.set(brdf, "bump_amount", s["normal_scale"])
         w.connect(brdf, "bump_map", tex("normal", maps["normal"]), "color")
     if "opacity" in maps:
-        w.connect(brdf, "opacity", tex("opacity", maps["opacity"]),
-                  "intensity")
+        w.connect(brdf, "opacity",
+                  remap("opacity", tex("opacity", maps["opacity"])), "value")
     if "emission" in maps:
         w.connect(brdf, "self_illumination",
-                  tex("emission", maps["emission"], cor=True), "color")
+                  cc("emission", tex("emission", maps["emission"],
+                                     cor=True)), "out_color")
     if "refraction" in maps:
         w.connect(brdf, "refract",
-                  tex("refraction", maps["refraction"], cor=True), "color")
+                  cc("refraction", tex("refraction", maps["refraction"],
+                                       cor=True)), "out_color")
     if "displacement" in maps:
         w.warn("displacement no V-Ray e' da geometria (VRayGeomDisplacedMesh),"
                " nao do material; '%s' sai sem" % name)
@@ -217,7 +263,8 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.set(brdf, "option_double_sided", True)
         w.set(brdf, "refract", [1.0, 1.0, 1.0, 1.0])
         w.connect(brdf, "translucency_amount",
-                  tex("translucency", maps["translucency"]), "intensity")
+                  remap("translucency",
+                        tex("translucency", maps["translucency"])), "value")
 
     if s["basecolor_gamma"] != 1.0:
         w.warn("basecolor_gamma custom nao aplicado em V-Ray (BitmapBuffer "

@@ -354,3 +354,28 @@ Pedidos do Matheus, tudo medido:
    subnet planta [0.5,0.7,0.3], objeto [0.29,0.56,0.89], variante
    [1,0.6,0]; geo [1,1,0.5]; matlib [0.5,1,0.5] (vermelho sem textura);
    componentoutput [0,1,0].
+
+## Nós de ajuste + metallic workflow + UPDATE MATERIALS (2026-09-10, tarde da noite)
+
+Pedidos do Matheus, todos medidos e verificados no USD:
+
+1. Settings JÁ reagem aos mapas: disp_scale entra quando ha displacement,
+   subsurface quando planta+translucency — confirmado a ele.
+2. **Nó de ajuste NEUTRO em todo caminho de mapa** ("se eu quiser alterar
+   valor"): cor ganha colorcorrect (mtlxcolorcorrect / pxrcolorcorrect::3.0
+   com o BaseColor Gamma / VRayNodeColorCorrection), dado ganha range/remap
+   (mtlxrange / pxrremap::3.0 / VRayNodeTexRemap input_value→value).
+   remap_height agora fica SEMPRE no caminho do displacement (neutro).
+3. **Metallic no RenderMan conectado** — achado do Matheus: e' via
+   `pxrmetallicworkflow::3.0` (in: baseColor/metallic/specular; out:
+   resultDiffuseRGB/resultSpecularEdgeRGB/resultSpecularFaceRGB).
+   basecolor_cc → baseColor, metalness_remap.resultR → metallic, e os 3
+   outputs no PxrSurface. Verificado no mtl.usdc das duas variantes.
+   O aviso antigo de "metalness sem ligar" morreu.
+4. **UPDATE MATERIALS** (o UPDATE ALL SETTINGS do HDA): Result.matlibs
+   guarda (materiallibrary, [(nome, mapas, plant)]);
+   builder.rebuild_materials esvazia cada matlib e remonta com os
+   settings/renderers atuais — geometria, binds e output ficam. Botão na
+   janela entre BUILD e EXPORT. Verificado: rebuild + re-export escreve.
+5. Vídeos de referência do Matheus (playlists RenderMan Material series,
+   7OgyUs3UCyg e K3WbPZZYcg8) anotados p/ a fase de qualidade de shader.

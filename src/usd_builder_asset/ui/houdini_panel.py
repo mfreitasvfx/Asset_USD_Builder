@@ -178,6 +178,13 @@ class Panel(QtWidgets.QWidget):
         self.btBuild.setMinimumHeight(34)
         self.btBuild.clicked.connect(self._build)
         linha3.addWidget(self.btBuild)
+        self.btUpdate = QtWidgets.QPushButton("UPDATE MATERIALS")
+        self.btUpdate.setMinimumHeight(34)
+        self.btUpdate.setToolTip(
+            "Reconstroi so' os materiais dos builds da etapa 2 com os "
+            "Settings atuais (geometria e binds ficam)")
+        self.btUpdate.clicked.connect(self._update_materials)
+        linha3.addWidget(self.btUpdate)
         self.btExport = QtWidgets.QPushButton("3 — EXPORT USD's")
         self.btExport.setMinimumHeight(34)
         self.btExport.clicked.connect(self._export)
@@ -348,6 +355,41 @@ class Panel(QtWidgets.QWidget):
                   + "-" * 10)
         self._diz("Confira/altere os subnets USD_Builder_Asset_* em /stage "
                   "e aperte 3 — EXPORT USD's.")
+
+    def _update_materials(self):
+        """Reconstroi so' os materiais (o UPDATE ALL SETTINGS do HDA).
+
+        Mexe nos Settings -> UPDATE MATERIALS -> os materiais dos builds
+        da etapa 2 sao remontados; geometria/binds/output ficam.
+        """
+        if not self._builds:
+            self._diz("nada montado — rode o 2 — BUILD ASSETS antes.")
+            return
+        _reload_core()
+        from usd_builder_asset import log
+        from usd_builder_asset.lops import builder
+        renderers = tuple(r for r, ck in self.cks.items() if ck.isChecked())
+        settings = {"basecolor_gamma": self.spGamma.value(),
+                    "normal_scale": self.spNormal.value(),
+                    "subsurface": self.spSss.value(),
+                    "tex_renderman": self.ckTexRman.isChecked()}
+        t = log.Tempo()
+        self._diz("-" * 10 + " START UPDATING MATERIALS " + "-" * 10)
+        with hou.InterruptableOperation("USD_Builder_Asset update",
+                                        open_interrupt_dialog=True) as op:
+            for i, res in enumerate(self._builds):
+                op.updateProgress(float(i) / max(1, len(self._builds)))
+                try:
+                    n = builder.rebuild_materials(
+                        res, renderers, disp_scale=self.spDisp.value(),
+                        settings=settings)
+                    self._diz("✓ UPDATE: %s (%d materiais) ..... %d/%d"
+                              % (res.asset_name, n, i + 1,
+                                 len(self._builds)))
+                except Exception:
+                    self._diz(traceback.format_exc())
+        self._diz(t.build_time())
+        self._diz("-" * 10 + " FINISHED UPDATING " + "-" * 10)
 
     def _export(self):
         """Etapa 3: executa os componentoutput montados na etapa 2.

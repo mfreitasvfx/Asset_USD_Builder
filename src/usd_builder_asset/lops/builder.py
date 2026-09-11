@@ -36,6 +36,7 @@ class Result(object):
         self.parts_missing = []
         self.usd_path = None
         self.variant_set = None    # "mtl" quando o build saiu com variantes
+        self.matlibs = []          # [(materiallibrary, [(nome, mapas, plant)])]
         self.avisos = []
 
     def warn(self, msg):
@@ -253,6 +254,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     single = (len(partes_asset) == 1)
     alvo_partes = list(partes_asset) if single else subsets
 
+    itens = []
     for parte in alvo_partes:
         mapas = partes_asset.get(parte)
         if not mapas:
@@ -265,7 +267,9 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             plant=plant, disp_scale=disp_scale, settings=settings)
         res.avisos.extend(avisos)
         res.parts_bound.append(_naming.usd_prim_name(parte))
+        itens.append((_naming.usd_prim_name(parte), mapas, plant))
         finais.append(node)
+    res.matlibs.append((ml, itens))
     ml.layoutChildren()
     # cor do HDA: verde-claro com material, vermelho sem textura nenhuma
     ml.setColor(hou.Color(0.5, 1.0, 0.5) if finais else hou.Color(1, 0, 0))
@@ -446,7 +450,7 @@ def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
     single = (len(partes_dict) == 1)
     alvo = list(partes_dict) if single else subsets
 
-    finais, ligadas = [], []
+    finais, ligadas, itens = [], [], []
     for parte in alvo:
         mapas = partes_dict.get(parte)
         if not mapas:
@@ -457,7 +461,9 @@ def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
             plant=plant, disp_scale=disp_scale, settings=settings)
         res.avisos.extend(avisos)
         finais.append(node)
+        itens.append((_naming.usd_prim_name(parte), mapas, plant))
         ligadas.append(_naming.usd_prim_name(parte))
+    res.matlibs.append((ml, itens))
     ml.layoutChildren()
     ml.setColor(hou.Color(0.5, 1.0, 0.5) if finais else hou.Color(1, 0, 0))
     ml.parm("materials").set(len(finais))
@@ -475,3 +481,38 @@ def _bind_parts(cm, ligadas, single):
         padrao = "/ASSET/geo" if single else "/ASSET/geo/*/%s" % parte
         cm.parm("primpattern%d" % i).set(padrao)
         cm.parm("matspecpath%d" % i).set("/ASSET/mtl/%s" % parte)
+
+
+def rebuild_materials(res, renderers, disp_scale=0.01, settings=None):
+    """Reconstroi SO' os materiais de um build (o UPDATE MATERIALS).
+
+    A geometria, os binds e o componentoutput ficam como estao; cada
+    materiallibrary e' esvaziada e remontada com os mesmos mapas e os
+    settings NOVOS. Devolve quantos materiais saíram.
+    """
+    total = 0
+    for ml, itens in res.matlibs:
+        try:
+            ml.path()
+        except hou.ObjectWasDeleted:
+            res.warn("materiallibrary sumiu; pulei (rode o BUILD de novo)")
+            continue
+        for c in list(ml.children()):
+            c.destroy()
+        finais = []
+        for nome, mapas, plant in itens:
+            node, avisos = _mats.build_material(
+                ml, nome, mapas, renderers=renderers, plant=plant,
+                disp_scale=disp_scale, settings=settings)
+            res.avisos.extend(avisos)
+            finais.append(node)
+        ml.layoutChildren()
+        ml.setColor(hou.Color(0.5, 1.0, 0.5) if finais else hou.Color(1, 0, 0))
+        ml.parm("materials").set(len(finais))
+        for i, node in enumerate(finais, start=1):
+            ml.parm("matnode%d" % i).set(node.name())
+            ml.parm("matpath%d" % i).set(node.name())
+            if ml.parm("assign%d" % i) is not None:
+                ml.parm("assign%d" % i).set(0)
+        total += len(finais)
+    return total

@@ -129,16 +129,24 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.set(img, "file", path)
         return img
 
+    # cada mapa ganha um no de ajuste NEUTRO no caminho -- colorcorrect na
+    # cor (com o BaseColor Gamma no basecolor), range no dado. E' o "se eu
+    # quiser alterar valor" do Matheus: abre o subnet e mexe.
     for role, inp in _DIRETO.items():
         if role not in maps:
             continue
         img = image(role, maps[role], "color3" if role in _COR else "default")
-        if role == "basecolor" and s["basecolor_gamma"] != 1.0:
-            g = sub.createNode("mtlxrange", "basecolor_gamma")
-            w.set(g, "signature", "color3")
-            w.set(g, "gamma", s["basecolor_gamma"])
-            w.connect(g, "in", img, "out")
-            img = g
+        if role in _COR:
+            cc = sub.createNode("mtlxcolorcorrect", role + "_cc")
+            if role == "basecolor":
+                w.set(cc, "gamma", s["basecolor_gamma"])
+            w.connect(cc, "in", img, "out")
+            img = cc
+        else:
+            rng = sub.createNode("mtlxrange", role + "_remap")
+            w.set(rng, "signature", "float")
+            w.connect(rng, "in", img, "out")
+            img = rng
         w.connect(surf, inp, img, "out")
         if role == "emission":
             w.set(surf, "emission", 1)
@@ -160,28 +168,30 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
 
     if "displacement" in maps:
         img = image("height", maps["displacement"], "default")
-        src = img
+        # o remap fica SEMPRE no caminho (neutro sem remap_disp) -- e' a
+        # alavanca de ajuste manual da altura
+        rm = sub.createNode("mtlxremap", "remap_height")
+        w.set(rm, "signature", "float")
         if s["remap_disp"]:
             il, ih, ol, oh = s["remap_disp"]
-            rm = sub.createNode("mtlxremap", "remap_height")
-            w.set(rm, "signature", "float")
             w.set(rm, "inlow", il)
             w.set(rm, "inhigh", ih)
             w.set(rm, "outlow", ol)
             w.set(rm, "outhigh", oh)
-            w.connect(rm, "in", img, "out")
-            src = rm
+        w.connect(rm, "in", img, "out")
         disp = sub.createNode("mtlxdisplacement", "displacement")
         w.set(disp, "scale", disp_scale)
-        w.connect(disp, "displacement", src, "out")
+        w.connect(disp, "displacement", rm, "out")
         out.setInput(1, disp, 0)
         w.set(out, "name2", "displacement")
 
     if plant and "translucency" in maps:
         img = image("translucency", maps["translucency"], "color3")
+        cc = sub.createNode("mtlxcolorcorrect", "translucency_cc")
+        w.connect(cc, "in", img, "out")
         w.set(surf, "thin_walled", 1)
         w.set(surf, "subsurface", s["subsurface"])
-        w.connect(surf, "subsurface_color", img, "out")
+        w.connect(surf, "subsurface_color", cc, "out")
 
     sub.layoutChildren()
     return sub
