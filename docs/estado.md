@@ -482,3 +482,20 @@ nunca foi o problema.
    translucency 6 x2.
 4. README: legenda das cores dos nos (o laranja->azul que o Matheus viu =
    variantes -> objeto unico).
+
+## Alavancas no geo sempre + folha pelo NOME + cores folha/tronco (2026-09-11)
+
+1. **center_to_origin e convert_units SEMPRE dentro do componentgeometry**
+   ("todos devem ter, ate porque a escala vem diferente"): perfil so' da
+   os valores; neutros (justify None, scale 1) quando nao pede. Campo
+   "Unit Scale (0 = do perfil)" na aba SETTINGS.
+2. **"Nao pegou as folhas"** -- medido: Leaf_03 nao tem opacity nem
+   translucency NEM NO PRODUTO original (a folha e' modelada inteira);
+   o setup de folha so' disparava com mapa de translucency. Agora
+   dispara tambem pelo NOME (leaf/folha): karma/renderman SSS puxando
+   do basecolor, vray translucency_amount = subsurface (0.25).
+   Verificado: Leaf_03 com translucency=6/thin=1/amount=0.25 e
+   thin_walled+subsurface no karma.
+3. **Cores por tipo de parte** (pedido): folha VERDE (0.5,0.7,0.3),
+   tronco MARROM (0.45,0.3,0.15) -- tokens leaf/leaves/folha e
+   trunk/tronco/bark/branch -- no collect e nos builders por renderer.

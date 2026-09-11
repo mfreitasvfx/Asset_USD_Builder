@@ -174,12 +174,16 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
         out.setInput(1, dp, 0)
         w.set(out, "name2", "displacement")
 
-    if plant and "translucency" in maps:
-        img = image("translucency", maps["translucency"], True)
-        w.connect(surf, "diffuseTransmitColor",
-                  cc("translucency", img), "resultRGB")
+    from .materials import eh_folha
+    if plant and ("translucency" in maps or eh_folha(name)):
+        # folha sem mapa de translucency entra pelo NOME (Maxtree nao
+        # entrega p/ todas): transmit ganha o gain, cor fica default
         w.set(surf, "diffuseTransmitGain", s["subsurface"])
         w.set(surf, "diffuseDoubleSided", 1)
+        if "translucency" in maps:
+            img = image("translucency", maps["translucency"], True)
+            w.connect(surf, "diffuseTransmitColor",
+                      cc("translucency", img), "resultRGB")
 
     sub.layoutChildren()
     return sub
@@ -273,21 +277,28 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.warn("displacement no V-Ray e' da geometria (VRayGeomDisplacedMesh),"
                " nao do material; '%s' sai sem" % name)
 
-    if plant and "translucency" in maps:
+    from .materials import eh_folha
+    if plant and ("translucency" in maps or eh_folha(name)):
         # a receita do video das folhas do Jonas Noell (e2KqOfraUyw):
         # thin-walled + translucency SSS; opacity em CLIP (folha nao tem
         # pixel semi-transparente -- renderiza mais rapido). O mapa entra
         # no translucency_amount (o 21.0 nao tem input de SSS color,
         # medido); o 'translucency_remap' no caminho e' onde se doma a
-        # intensidade -- Jonas nunca chega perto de 1.
+        # intensidade -- Jonas nunca chega perto de 1. Folha SEM mapa
+        # (Maxtree nao entrega p/ todas) entra pelo NOME, com amount fixo.
         w.set(brdf, "translucency", "6")          # SSS (enum medido)
         w.set(brdf, "refract_thin_walled", True)
         w.set(brdf, "option_double_sided", True)
-        w.set(brdf, "opacity_mode", "1")          # Clip
         w.set(brdf, "refract", [1.0, 1.0, 1.0, 1.0])
-        w.connect(brdf, "translucency_amount",
-                  remap("translucency",
-                        tex("translucency", maps["translucency"])), "value")
+        if "opacity" in maps:
+            w.set(brdf, "opacity_mode", "1")      # Clip
+        if "translucency" in maps:
+            w.connect(brdf, "translucency_amount",
+                      remap("translucency",
+                            tex("translucency", maps["translucency"])),
+                      "value")
+        else:
+            w.set(brdf, "translucency_amount", s["subsurface"])
 
     if s["basecolor_gamma"] != 1.0:
         w.warn("basecolor_gamma custom nao aplicado em V-Ray (BitmapBuffer "

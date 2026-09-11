@@ -151,26 +151,30 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
 
     # ---- padrao Rebelway do component builder -------------------------
     # (RBL_Component_Builder_Template: default + proxy + simproxy)
-    # Ordem a pedido do Matheus: centralizar PRIMEIRO, converter a escala
-    # depois. (Geometricamente da' no mesmo -- escala na origem preserva
-    # centro e chao -- mas a rede fica na ordem que se le.)
+    # center_to_origin e convert_units ficam SEMPRE na rede ("todos devem
+    # ter, ate porque a escala vem diferente" -- Matheus): o perfil so'
+    # define os VALORES; neutros (justify None / scale 1) quando o perfil
+    # nao pede, prontos para ajustar a mao.
+    # Ordem: centralizar primeiro, escala depois (escala na origem
+    # preserva centro e chao).
+    ms = sop.createNode("matchsize", "center_to_origin")
+    ms.setInput(0, tail)
     if getattr(profile, "center", False):
-        # peca de catalogo senta na origem: centra XZ, apoia no chao (min Y).
-        # doscale fica 0 -- centralizar nunca pode reescalar o asset.
-        ms = sop.createNode("matchsize", "center_to_origin")
-        ms.setInput(0, tail)
+        # peca de catalogo senta na origem: centra XZ, apoia no chao (min
+        # Y). doscale=0 -- centralizar nunca pode reescalar o asset.
         ms.parm("justify_x").set(2)   # center   (menu medido)
         ms.parm("justify_y").set(1)   # min = chao
         ms.parm("justify_z").set(2)
-        tail = ms
+    else:
+        for eixo in ("justify_x", "justify_y", "justify_z"):
+            ms.parm(eixo).set(0)      # None = neutro
+    tail = ms
 
     escala = float(getattr(profile, "unit_scale", 1.0) or 1.0)
-    if escala != 1.0:
-        # o "convert the units" do video: fonte em cm -> USD em metros
-        xf = sop.createNode("xform", "convert_units")
-        xf.setInput(0, tail)
-        xf.parm("scale").set(escala)
-        tail = xf
+    xf = sop.createNode("xform", "convert_units")
+    xf.setInput(0, tail)
+    xf.parm("scale").set(escala)      # 1.0 = neutro
+    tail = xf
 
     sop.node("default").setInput(0, tail)
 

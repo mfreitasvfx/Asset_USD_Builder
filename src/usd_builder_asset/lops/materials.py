@@ -54,6 +54,26 @@ def _cfg(settings):
     return s
 
 
+# tipo da parte pelo NOME -- decide cor do no e o fallback de folha
+_TOKENS_FOLHA = ("leaf", "leaves", "folha")
+_TOKENS_TRONCO = ("trunk", "tronco", "bark", "branch")
+
+
+def eh_folha(nome):
+    low = nome.lower()
+    return any(t in low for t in _TOKENS_FOLHA)
+
+
+def cor_da_parte(nome):
+    """Verde p/ folha, marrom p/ tronco, None p/ o resto (Matheus)."""
+    low = nome.lower()
+    if any(t in low for t in _TOKENS_FOLHA):
+        return hou.Color(0.5, 0.7, 0.3)
+    if any(t in low for t in _TOKENS_TRONCO):
+        return hou.Color(0.45, 0.3, 0.15)
+    return None
+
+
 class _W(object):
     """Coletor de avisos + set/connect tolerantes."""
 
@@ -125,6 +145,7 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
     # cada mapa ganha um no de ajuste NEUTRO no caminho -- colorcorrect na
     # cor (com o BaseColor Gamma no basecolor), range no dado. E' o "se eu
     # quiser alterar valor" do Matheus: abre o subnet e mexe.
+    base_cc = None
     for role, inp in _DIRETO.items():
         if role not in maps:
             continue
@@ -135,6 +156,8 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
                 w.set(cc, "gamma", s["basecolor_gamma"])
             w.connect(cc, "in", img, "out")
             img = cc
+            if role == "basecolor":
+                base_cc = cc
         else:
             rng = sub.createNode("mtlxrange", role + "_remap")
             w.set(rng, "signature", "float")
@@ -180,13 +203,19 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
     elif disp is not None:
         disp.destroy()                    # sem mapa, sem galho morto
 
-    if plant and "translucency" in maps:
-        img = image("translucency", maps["translucency"], "color3")
-        cc = sub.createNode("mtlxcolorcorrect", "translucency_cc")
-        w.connect(cc, "in", img, "out")
+    # setup de folha: com mapa de translucency, OU quando o NOME diz que e'
+    # folha ("ele nao pegou as folhas" -- Maxtree nao entrega translucency
+    # p/ toda folha; ai o SSS puxa do basecolor)
+    if plant and ("translucency" in maps or eh_folha(name)):
         w.set(surf, "thin_walled", 1)
         w.set(surf, "subsurface", s["subsurface"])
-        w.connect(surf, "subsurface_color", cc, "out")
+        if "translucency" in maps:
+            img = image("translucency", maps["translucency"], "color3")
+            cc = sub.createNode("mtlxcolorcorrect", "translucency_cc")
+            w.connect(cc, "in", img, "out")
+            w.connect(surf, "subsurface_color", cc, "out")
+        elif base_cc is not None:
+            w.connect(surf, "subsurface_color", base_cc, "out")
 
     sub.layoutChildren()
     return sub
@@ -316,12 +345,22 @@ def build_material(parent, name, maps, renderers=("karma", "arnold"),
         else:
             w.warn("V-Ray nao esta nesta sessao; '%s' sai sem" % name)
 
+    # folha verde, tronco marrom (pedido do Matheus) -- nos builders e no
+    # collect, para se achar de longe na materiallibrary
+    cor = cor_da_parte(name)
+    if cor is not None:
+        for n in (ar, km, rman, vr):
+            if n is not None:
+                n.setColor(cor)
+
     extras = [n for n in (ar, rman, vr) if n is not None]
     if not extras and km is not None:
         km.setName(name, unique_name=True)
         return km, w.avisos
 
     col = parent.createNode("collect", name)
+    if cor is not None:
+        col.setColor(cor)
     i = 0
     for n in extras:
         # builder oficial do V-Ray expoe surface/displacement/volume, mas

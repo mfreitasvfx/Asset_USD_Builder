@@ -192,6 +192,11 @@ class Panel(QtWidgets.QWidget):
         wrapP.setLayout(hbP)
         fS.addRow("Branches", wrapP)
 
+        # a escala vem diferente por biblioteca (KitBash em cm = 0.01,
+        # Maxtree ja em metros = 1); 0 = usa a do perfil
+        self.spUnit = spin(0.0)
+        fS.addRow("Unit Scale (0 = do perfil)", self.spUnit)
+
         self.ckTexShared = QtWidgets.QCheckBox(
             "Texturas compartilhadas (UMA copia em <saida>/textures)")
         self.ckTexShared.setChecked(False)   # opcoes todas desligadas
@@ -356,6 +361,8 @@ class Panel(QtWidgets.QWidget):
                     "tex_renderman": self.ckTexRman.isChecked()}
         over = {"proxy": self.ckProxy.isChecked(),
                 "simproxy": self.ckSimproxy.isChecked()}
+        if self.spUnit.value() > 0:
+            over["unit_scale"] = self.spUnit.value()
         # gallery ligada => thumbnail no export implicito (GL) -- um
         # checkbox so', como o Matheus pediu
         thumb_cfg = None
