@@ -499,3 +499,13 @@ nunca foi o problema.
 3. **Cores por tipo de parte** (pedido): folha VERDE (0.5,0.7,0.3),
    tronco MARROM (0.45,0.3,0.15) -- tokens leaf/leaves/folha e
    trunk/tronco/bark/branch -- no collect e nos builders por renderer.
+
+## Todos os albedos viram material (2026-09-11, cont.)
+
+"Se pegar por albedo da pra ver que tem 12, assim como o Max. mas so
+veio oito" -- a ferramenta so montava material para os subsets presentes
+na malha DESTA variacao. Agora TODA parte das texturas vira material na
+/ASSET/mtl (igual ao Max: 12 albedos = 12 materiais); o BIND continua
+explicito, so nas partes com subset na malha. Verificado no Zea: 12
+materiais no USD, 6 bindings. As outras variacoes da mesma planta acham
+seus materiais prontos.

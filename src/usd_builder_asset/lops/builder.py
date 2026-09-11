@@ -263,23 +263,31 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     # shop_materialpath generico ('default_material'), entao casar por nome
     # nao faz sentido -- o unico material vai no /ASSET/geo inteiro.
     single = (len(partes_asset) == 1)
-    alvo_partes = list(partes_asset) if single else subsets
 
+    # TODAS as partes das texturas viram material ("se pegar por albedo da
+    # pra ver que tem 12, assim como o Max" -- Matheus). O BIND fica so'
+    # nas que tem subset na malha; as demais moram em /ASSET/mtl prontas
+    # (outras variacoes da mesma planta usam).
+    subsets_usd = {_naming.usd_prim_name(s) for s in subsets}
     itens = []
-    for parte in alvo_partes:
+    for parte in partes_asset:
         mapas = partes_asset.get(parte)
-        if not mapas:
-            res.parts_missing.append(parte)
-            res.warn("subset '%s' sem jogo de texturas -- sem material "
-                     "(vira cinza no render)" % parte)
-            continue
+        nome_p = _naming.usd_prim_name(parte)
         node, avisos = _mats.build_material(
-            ml, _naming.usd_prim_name(parte), mapas, renderers=renderers,
+            ml, nome_p, mapas, renderers=renderers,
             plant=plant, disp_scale=disp_scale, settings=settings)
         res.avisos.extend(avisos)
-        res.parts_bound.append(_naming.usd_prim_name(parte))
-        itens.append((_naming.usd_prim_name(parte), mapas, plant))
+        if single or nome_p in subsets_usd:
+            res.parts_bound.append(nome_p)
+        itens.append((nome_p, mapas, plant))
         finais.append(node)
+    for s in subsets:
+        if _naming.usd_prim_name(s) not in {_naming.usd_prim_name(p)
+                                            for p in partes_asset} \
+                and not single:
+            res.parts_missing.append(s)
+            res.warn("subset '%s' sem jogo de texturas -- sem material "
+                     "(vira cinza no render)" % s)
     res.matlibs.append((ml, itens))
     ml.layoutChildren()
     # cor do HDA: verde-claro com material, vermelho sem textura nenhuma
@@ -480,21 +488,20 @@ def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
     ml.parm("matpathprefix").set("/ASSET/mtl/")
     plant = profile.plant_workflow and asset.plant
     single = (len(partes_dict) == 1)
-    alvo = list(partes_dict) if single else subsets
+    subsets_usd = {_naming.usd_prim_name(s) for s in subsets}
 
     finais, ligadas, itens = [], [], []
-    for parte in alvo:
-        mapas = partes_dict.get(parte)
-        if not mapas:
-            res.warn("variante '%s': subset '%s' sem texturas" % (sufixo, parte))
-            continue
+    for parte in partes_dict:            # TODAS as partes viram material
+        mapas = partes_dict[parte]
+        nome_p = _naming.usd_prim_name(parte)
         node, avisos = _mats.build_material(
-            ml, _naming.usd_prim_name(parte), mapas, renderers=renderers,
+            ml, nome_p, mapas, renderers=renderers,
             plant=plant, disp_scale=disp_scale, settings=settings)
         res.avisos.extend(avisos)
         finais.append(node)
-        itens.append((_naming.usd_prim_name(parte), mapas, plant))
-        ligadas.append(_naming.usd_prim_name(parte))
+        itens.append((nome_p, mapas, plant))
+        if single or nome_p in subsets_usd:
+            ligadas.append(nome_p)       # bind so' com subset na malha
     res.matlibs.append((ml, itens))
     ml.layoutChildren()
     ml.setColor(hou.Color(0.5, 1.0, 0.5) if finais else hou.Color(1, 0, 0))
