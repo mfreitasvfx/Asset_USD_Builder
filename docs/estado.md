@@ -427,3 +427,20 @@ Decisões do Matheus, medidas:
    (exportar aos poucos funciona), repetido dá 'ja existia'. O
    assetutils.addAsset SEM variantes criava o db e não inseria NADA
    (calado) — gallery.py voltou ao addItem direto, que é o que funciona.
+
+## V-Ray: MetaImageFile + vrayMtl reusado (2026-09-11)
+
+Feedback do teste do Matheus no viewport:
+
+1. **TexBitmap+BitmapBuffer NAO renderiza** no delegate; o que funciona e'
+   o **VRayNodeMetaImageFile** com OCIO ligado (ele provou na mao:
+   Enable OCIO, Config Environment, Mode ColorSpace, In 'Texture -
+   sRGB(2.2) (.jpg, .png)' -> Out 'ACEScg'). build_vray agora usa
+   MetaImageFile: cor = OCIO com nomes resolvidos do config ativo
+   (texconv._resolve); dado = BitmapBuffer_color_space '0' linear sem
+   OCIO. Saidas identicas (color/intensity), cc/remap intactos.
+2. **vrayMtl solto**: o vray_vop_builder ja nasce com um vrayMtl; criar
+   outro deixava o default pendurado. Agora REUSA (renomeado 'surface').
+3. atlas_material: parte-base = nome mais CURTO, e partes longas
+   atualizam primeiro (arquivos extras de teste na pasta de texturas nao
+   batizam o material nem sobrepoem os mapas da base).

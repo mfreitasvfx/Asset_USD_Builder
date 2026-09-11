@@ -193,19 +193,31 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
     # (o subnet generico publicava uma forma que o delegate nao le.)
     sub = parent.createNode("vray_vop_builder", "vray_" + name)
     out = sub.node("vrayOutput")
-    brdf = sub.createNode("VRayNodeBRDFVRayMtl", "surface")
+    # REUSA o vrayMtl que o builder ja traz -- criar outro deixava o
+    # default solto na rede (apontado pelo Matheus)
+    brdf = sub.node("vrayMtl") or sub.createNode("VRayNodeBRDFVRayMtl",
+                                                 "surface")
+    brdf.setName("surface")
     out.setInput(0, brdf, 0)              # input 0 = Material
 
     def tex(role, path, cor=False):
-        buf = sub.createNode("VRayNodeBitmapBuffer", role + "_file")
-        w.set(buf, "file", path)
-        if not cor:
-            # mapa de dado = linear; sem desligar o auto, o V-Ray deduz
-            # sRGB do arquivo (png) e o roughness/normal saem errados
-            w.set(buf, "auto_color_space", 0)
-            w.set(buf, "color_space", "0")
-        t = sub.createNode("VRayNodeTexBitmap", role)
-        w.connect(t, "bitmap", buf, "bitmap")
+        # MetaImageFile, nao TexBitmap+BitmapBuffer: o Matheus testou no
+        # viewport -- o par nao renderizava; o MetaImageFile com OCIO
+        # (In sRGB do config ativo -> Out ACEScg) funciona
+        t = sub.createNode("VRayNodeMetaImageFile", role)
+        w.set(t, "BitmapBuffer_file", path)
+        if cor:
+            from .. import texconv
+            w.set(t, "TexOCIO_use", 1)
+            w.set(t, "TexOCIO_inout_type", "0")   # By Color Space
+            w.set(t, "TexOCIO_config_src", "1")   # Environment
+            w.set(t, "TexOCIO_mode", "0")         # ColorSpace
+            w.set(t, "TexOCIO_colorspace_in", texconv._resolve("srgb"))
+            w.set(t, "TexOCIO_colorspace_out", texconv._resolve("acescg"))
+        else:
+            # mapa de dado = linear, sem OCIO
+            w.set(t, "auto_color_space", 0)
+            w.set(t, "BitmapBuffer_color_space", "0")
         return t
 
     def cc(role, t):

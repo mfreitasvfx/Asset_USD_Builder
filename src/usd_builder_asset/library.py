@@ -305,8 +305,11 @@ def atlas_material(asset, variant="light", com_sufixo=False):
     """
     mapas = {}
     basecolor = None
-    base_parte = None
-    for parte, m in asset.parts.items():
+    bases = []
+    # partes mais LONGAS primeiro: a parte-base (curta) atualiza por
+    # ultimo e ganha de arquivos extras deixados na pasta
+    for parte, m in sorted(asset.parts.items(),
+                           key=lambda kv: -len(kv[0])):
         low = parte.lower()
         if low.endswith("_" + variant) and "basecolor" in m:
             basecolor = m["basecolor"]
@@ -314,13 +317,16 @@ def atlas_material(asset, variant="light", com_sufixo=False):
         if low.endswith("_dark") or low.endswith("_light"):
             continue                       # a outra variante
         mapas.update(m)
-        base_parte = base_parte or parte
+        bases.append(parte)
     if basecolor:
         mapas["basecolor"] = basecolor
     if com_sufixo:
         nome = "%s_%s" % (asset.name, variant)
     else:
-        nome = base_parte or asset.name
+        # a parte-base e' o NOME MAIS CURTO: arquivos extras que o artista
+        # deixa na pasta (ex.: *_ACES.png de teste) viram partes mais
+        # longas e nao podem batizar o material
+        nome = min(bases, key=len) if bases else asset.name
     return nome, mapas
 
 
