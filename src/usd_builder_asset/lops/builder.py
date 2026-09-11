@@ -211,8 +211,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             co.parm("lopoutput").set(usd)
             res.usd_path = usd
         res.nodes["componentoutput"] = co
-        outp = net.createNode("output", "output0")
-        outp.setInput(0, co)
+        _liga_output0(net, co)
         net.layoutChildren()
         if write and out_dir:
             try:
@@ -294,8 +293,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         co.parm("lopoutput").set(usd)
         res.usd_path = usd
     res.nodes["componentoutput"] = co
-    outp = net.createNode("output", "output0")
-    outp.setInput(0, co)
+    _liga_output0(net, co)
     net.layoutChildren()
 
     if write and out_dir:
@@ -314,6 +312,19 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             net.destroy()
 
     return res
+
+
+def _liga_output0(net, co):
+    """Religa o output0 QUE O SUBNET JA TEM no componentoutput.
+
+    Criar um output novo dava um segundo no ('output1') e deixava o
+    output0 default pendurado no Input Stage -- apontado pelo Matheus.
+    Religar o existente tambem desliga o fio do input.
+    """
+    outp = net.node("output0")
+    if outp is None:
+        outp = net.createNode("output", "output0")
+    outp.setInput(0, co)
 
 
 def _share_textures(parts_dict, tex_dir, res):
