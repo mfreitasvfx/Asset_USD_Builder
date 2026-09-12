@@ -330,7 +330,14 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
             w.set(brdf, "opacity_mode", "1")      # Clip
         w.set(brdf, "translucency_amount", s["subsurface"])
         if "translucency" in maps:
-            w.connect(brdf, "fog_color_tex",
+            # MEDIDO entre builds do vfh: o V-Ray 7.00 (Houdini 20.5)
+            # expoe o input translucency_color; o 7.10/Update 1 (Houdini
+            # 21.0) removeu -- sobra fog_color_tex. Usamos o que o build
+            # atual oferecer, na ordem certa.
+            alvo_cor = ("translucency_color"
+                        if "translucency_color" in brdf.inputNames()
+                        else "fog_color_tex")
+            w.connect(brdf, alvo_cor,
                       cc("translucency",
                          tex("translucency", maps["translucency"],
                              cor=True)), "out_color")

@@ -615,3 +615,12 @@ Licao: grep de verificacao tem que mirar o TERMINAL exato.
 3. Asset Folder virou combo editavel com as ULTIMAS 8 pastas (persistem
    em $HOME_HOUDINI/usd_builder_asset_recent.json; salvas a cada SCAN
    valido, mais recente primeiro).
+
+## translucency_color: diferenca entre builds do vfh (2026-09-12)
+
+O Matheus notou o input translucency_color presente no 20.5 e ausente no
+21.0. MEDIDO: Houdini_20.5 roda V-Ray 7.00.10 (release) e Houdini_21.0
+roda 7.10.00 (Update 1) -- a Chaos REMOVEU o input no Update 1 (o parm
+continua; conectaveis viram translucency_amount + fog_color_tex).
+build_vray agora e' adaptativo: usa translucency_color quando o build
+expoe, senao fog_color_tex.
