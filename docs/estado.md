@@ -576,3 +576,14 @@ deve carregar -- arnold_available() agora testa o TIPO DE NO, nao o
 path. docs/checagem.md criado: a lista de checagem visual do Matheus
 ("pode construir para os outros renderizadores, so nao vou checar
 agora. coloca na lista de checagem").
+
+## CORRECAO: o ri tinha sumido do collect (2026-09-11, cont.)
+
+O commit anterior AFIRMOU ri:surface no USD com base num grep gordo
+(contava PxrSurface, nao o terminal) -- ERRADO. O terminal ri NAO estava
+no Material. Bisseccao mediu a causa: ligar a saida 'properties' do
+builder oficial do Karma no collect derruba o terminal do subnet ri
+(km surface-so' + rman = kma+ri+preview convivem). Fix: o collect pula
+a saida 'properties' do karma. Verificado no Zea: 12x
+outputs:ri:surface.connect, contextos kma+ri+vray+preview.
+Licao: grep de verificacao tem que mirar o TERMINAL exato.

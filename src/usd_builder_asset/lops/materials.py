@@ -395,7 +395,12 @@ def build_material(parent, name, maps, renderers=("karma", "arnold"),
             col.setInput(i, n, oidx)
             i += 1
     if km is not None:
-        for oidx in range(len(km.outputNames())):
+        for oidx, oname in enumerate(km.outputNames()):
+            # MEDIDO: ligar a saida 'properties' do builder oficial do
+            # Karma no collect DERRUBA o terminal ri do RenderMan no
+            # Material (bisseccao 2026-09-11). So' surface/displacement.
+            if oname == "properties":
+                continue
             col.setInput(i, km, oidx)
             i += 1
     return col, w.avisos
