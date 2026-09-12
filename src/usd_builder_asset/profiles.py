@@ -40,7 +40,10 @@ class Profile(object):
                  rough_source="roughness", plant_workflow=False,
                  texture_subdirs=(), notes="",
                  proxy=False, simproxy=False, center=False,
-                 unit_scale=1.0):
+                 unit_scale=0.01):
+        # unit_scale DEFAULT 0.01 (decisao do Matheus, 2026-09-12): o
+        # pipeline exporta em CENTIMETROS (Max, KitBash, Megascans FBX) e
+        # o USD e' metros. O Unit Scale da janela (0 = do perfil) sobrepoe.
         self.key = key
         self.label = label
         self.library = library

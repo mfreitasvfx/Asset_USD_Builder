@@ -624,3 +624,10 @@ roda 7.10.00 (Update 1) -- a Chaos REMOVEU o input no Update 1 (o parm
 continua; conectaveis viram translucency_amount + fog_color_tex).
 build_vray agora e' adaptativo: usa translucency_color quando o build
 expoe, senao fog_color_tex.
+
+## unit_scale 0.01 e' o DEFAULT de todos os perfis (2026-09-12)
+
+Decisao do Matheus: o pipeline exporta em cm (Max/KitBash/Megascans) e
+o USD e' metros. Default do Profile mudou de 1.0 para 0.01 -- todos os
+perfis herdam. VERIFICADO no Zea rebuild: milho com 2.09 m de altura
+(antes saia 100x). O Unit Scale da janela (0 = do perfil) sobrepoe.
