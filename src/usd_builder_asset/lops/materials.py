@@ -117,12 +117,20 @@ def _karma_subnet(parent, nome):
     dentro e ligados. (O subnet manual com ctx 'mtlx' tambem renderizava
     -- medido -- mas o oficial e' o padrao e traz o properties.)
     """
+    # MEDIDO: o _setupMtlXBuilderSubnet custa ~0.47s por material (parm
+    # templates); num asset de 12 materiais eram ~5.6s so' de Karma
+    # ("por que ta demorando quando marca o karma?" -- Matheus). O tool
+    # roda UMA vez num template e os demais sao COPIA (rapida).
     import voptoolutils
-    sub = parent.createNode("subnet", nome)
-    voptoolutils._setupMtlXBuilderSubnet(
-        subnet_node=sub, name=nome,
-        mask=voptoolutils.KARMAMTLX_TAB_MASK,
-        folder_label="Karma Material Builder", render_context="kma")
+    tpl = parent.node("karma_TEMPLATE")
+    if tpl is None:
+        tpl = parent.createNode("subnet", "karma_TEMPLATE")
+        voptoolutils._setupMtlXBuilderSubnet(
+            subnet_node=tpl, name="karma_TEMPLATE",
+            mask=voptoolutils.KARMAMTLX_TAB_MASK,
+            folder_label="Karma Material Builder", render_context="kma")
+    sub = hou.copyNodesTo([tpl], parent)[0]
+    sub.setName(nome, unique_name=True)
     return sub
 
 
@@ -166,6 +174,18 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.connect(surf, inp, img, "out")
         if role == "emission":
             w.set(surf, "emission", 1)
+
+    if "back_basecolor" in maps:
+        # frente/verso do video das folhas: twosided chaveia a COR por
+        # facing (front = basecolor, back = textura de verso)
+        imgb = image("back_basecolor", maps["back_basecolor"], "color3")
+        ccb = sub.createNode("mtlxcolorcorrect", "back_basecolor_cc")
+        w.connect(ccb, "in", imgb, "out")
+        ts = sub.createNode("twosided::2.0", "twosided")
+        if base_cc is not None:
+            w.connect(ts, "front", base_cc, "out")
+        w.connect(ts, "back", ccb, "out")
+        w.connect(surf, "base_color", ts, "color")
 
     if "glossiness" in maps and "roughness" not in maps:
         img = image("glossiness", maps["glossiness"], "default")
@@ -301,6 +321,17 @@ def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None,
             w.set(mult, c, disp_scale)
         w.connect(mult, "input1", src, out_name)
         w.connect(out, "displacement", mult, "rgb")
+
+    if "back_basecolor" in maps:
+        # frente/verso: dois standard_surface num arnold::two_sided
+        # (in: front/back, out: shader -- medido no H22)
+        surf_b = ar.createNode("standard_surface", "surface_back")
+        imgb = image("back_basecolor", maps["back_basecolor"], True)
+        w.connect(surf_b, "base_color", imgb, "rgba")
+        ts = ar.createNode("arnold::two_sided", "two_sided")
+        w.connect(ts, "front", surf, "surface")
+        w.connect(ts, "back", surf_b, "surface")
+        out.setInput(0, ts, 0)
 
     if plant and "translucency" in maps:
         img = image("translucency", maps["translucency"], True)

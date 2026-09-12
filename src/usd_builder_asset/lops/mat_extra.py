@@ -244,15 +244,15 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         # Jonas Noell (video das folhas): reflexao em BRANCO PURO + mapa
         # de roughness -- o default preto do VRayMtl = specular nenhum
         w.set(brdf, "reflect", [1.0, 1.0, 1.0, 1.0])
+    rough_src = None
     if "roughness" in maps:
         w.set(brdf, "option_use_roughness", "1")
-        w.connect(brdf, "reflect_glossiness",
-                  remap("roughness", tex("roughness", maps["roughness"])),
-                  "value")
+        rough_src = remap("roughness", tex("roughness", maps["roughness"]))
+        w.connect(brdf, "reflect_glossiness", rough_src, "value")
     elif "glossiness" in maps:
-        w.connect(brdf, "reflect_glossiness",
-                  remap("glossiness", tex("glossiness", maps["glossiness"])),
-                  "value")
+        rough_src = remap("glossiness",
+                          tex("glossiness", maps["glossiness"]))
+        w.connect(brdf, "reflect_glossiness", rough_src, "value")
     if "metalness" in maps:
         w.connect(brdf, "metalness",
                   remap("metalness", tex("metalness", maps["metalness"])),
@@ -287,8 +287,35 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.warn("displacement no V-Ray e' da geometria (VRayGeomDisplacedMesh),"
                " nao do material; '%s' sai sem" % name)
 
+    # frente/verso (video das folhas): so' quando o pacote traz textura
+    # de verso. Mtl2Sided combina os DOIS materiais; a translucency vai
+    # no slot do 2Sided, e o thin-walled fica FORA (no video, com 2Sided
+    # o thin-walled anula a translucency).
+    tem_verso = "back_basecolor" in maps
+    if tem_verso:
+        bb = sub.createNode("VRayNodeBRDFVRayMtl", "surface_back")
+        w.connect(bb, "diffuse",
+                  cc("back_basecolor", tex("back_basecolor",
+                                           maps["back_basecolor"],
+                                           cor=True)), "out_color")
+        if rough_src is not None:
+            w.set(bb, "reflect", [1.0, 1.0, 1.0, 1.0])
+            if "roughness" in maps:
+                w.set(bb, "option_use_roughness", "1")
+            w.connect(bb, "reflect_glossiness", rough_src, "value")
+        m2 = sub.createNode("VRayNodeMtl2Sided", "two_sided")
+        w.connect(m2, "front", final_brdf, "brdf")
+        w.connect(m2, "back", bb, "brdf")
+        if "translucency" in maps:
+            w.connect(m2, "translucency_tex",
+                      cc("translucency",
+                         tex("translucency", maps["translucency"],
+                             cor=True)), "out_color")
+        out.setInput(0, m2, 0)
+
     from .materials import eh_folha
-    if plant and ("translucency" in maps or eh_folha(name)):
+    if plant and not tem_verso \
+            and ("translucency" in maps or eh_folha(name)):
         # folhas: thin-walled + translucency SSS (Jonas Noell) com a
         # correcao do Matheus, confirmada no manual/SDK da Chaos: o mapa
         # de translucency e' COR -- e neste build do vfh o slot de cor

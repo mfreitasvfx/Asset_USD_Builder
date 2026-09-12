@@ -587,3 +587,20 @@ builder oficial do Karma no collect derruba o terminal do subnet ri
 a saida 'properties' do karma. Verificado no Zea: 12x
 outputs:ri:surface.connect, contextos kma+ri+vray+preview.
 Licao: grep de verificacao tem que mirar o TERMINAL exato.
+
+## Two-sided nos 3 renderers + Karma 2.7x mais rapido + Arnold no H22 (2026-09-11)
+
+1. **"Por que demora com karma marcado?"** -- MEDIDO: o
+   _setupMtlXBuilderSubnet custa ~0.47s/material (parm templates). Fix:
+   template criado UMA vez por materiallibrary (karma_TEMPLATE) e os
+   demais por copia -- 2.82s -> 1.05s em 6 materiais.
+2. **Two-sided (video das folhas)**: partes `<Nome>_Back` viram papeis
+   back_* (_funde_verso). V-Ray = Mtl2Sided (front/back/translucency_tex;
+   thin-walled FORA nesse caso, o video mostra que anula); Karma =
+   twosided chaveando basecolor por facing (traduz como sourceAsset com
+   nome _undefined -- render a conferir); Arnold = arnold::two_sided
+   (front/back, medido no H22). Sem biblioteca real com verso: checagem
+   pendente com textura sintetica/manual.
+3. **Arnold valida no Houdini 22** (pedido): zea_h22 com 12 materiais e
+   outputs:arnold:surface + kma + preview. No 21 o HDA do htoa nao
+   carrega em hython; na GUI do 21 deve funcionar (check por tipo de no).

@@ -97,6 +97,9 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     res.asset_name = nome
     partes_asset = parts if parts is not None else asset.parts
 
+    partes_asset = _funde_verso(partes_asset)
+    if variants:
+        variants = [(v, _funde_verso(p)) for v, p in variants]
     if tex_dir:
         partes_asset = _share_textures(partes_asset, tex_dir, res)
         if variants:
@@ -383,6 +386,33 @@ def _liga_output0(net, co):
     if outp is None:
         outp = net.createNode("output", "output0")
     outp.setInput(0, co)
+
+
+def _funde_verso(partes):
+    """'<Parte>_Back' vira papeis back_* dentro de '<Parte>'.
+
+    O esquema frente/verso do video das folhas do Jonas Noell: so' quando
+    o pacote TRAZ textura de verso. Os builders ligam o two-sided de cada
+    renderer quando veem back_basecolor.
+    """
+    out, versos = {}, {}
+    for p, m in partes.items():
+        if p.lower().endswith("_back"):
+            versos[p[:-5]] = m
+        else:
+            out[p] = dict(m)
+    for base, m in versos.items():
+        alvo = None
+        for k in out:
+            if k.lower() == base.lower():
+                alvo = out[k]
+                break
+        if alvo is None:
+            out[base + "_Back"] = m     # verso sem frente: fica como era
+        else:
+            for papel, arq in m.items():
+                alvo["back_" + papel] = arq
+    return out
 
 
 def _share_textures(parts_dict, tex_dir, res):

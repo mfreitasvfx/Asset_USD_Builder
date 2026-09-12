@@ -29,3 +29,24 @@ espera o OLHO do artista. Marcar e anotar o resultado aqui.
       o banco somando (thumbnail GL implícito).
 - [ ] Presets: ciclo real na GUI — caprichar folha, SAVE PRESET,
       UPDATE MATERIALS, export.
+
+## Two-sided (frente/verso, vídeo das folhas do Jonas)
+
+Convenção: parte `<Nome>_Back` nas texturas vira papéis `back_*` da
+parte-base e liga o two-sided do renderer. NENHUMA biblioteca sua tem
+textura de verso hoje — checar quando houver (ou duplicando uma na mão,
+como o Jonas fez):
+
+- [ ] V-Ray: `Mtl2Sided` (front/back/translucency_tex) — conferido no
+      USD com mapa sintético; falta render real.
+- [ ] Karma: `twosided` chaveia o basecolor por facing; traduz como
+      shader sourceAsset com nome `_undefined` — conferir se o XPU
+      renderiza (suspeita: sim, é implementação embutida).
+- [ ] Arnold: `arnold::two_sided` (front/back) — wiring pronto, sem
+      render ainda.
+
+## Arnold via Houdini 22 (`Testes/zea_h22`)
+
+- [x] Build headless no 22.0.368: 12 materiais, outputs:arnold:surface
+      + kma + preview no USD.
+- [ ] Conferir no viewport do H22 (Arnold render delegate).
