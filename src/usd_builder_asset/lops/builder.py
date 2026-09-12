@@ -293,6 +293,8 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             sw = sop.createNode("shrinkwrap::2.0", "simproxy_hull")
             sw.setInput(0, tail)
             sop.node("simproxy").setInput(0, sw)
+    # nos criados por codigo nascem empilhados; arruma como na GUI
+    sop.layoutChildren()
     cg.parm("partitionattribs").set("shop_materialpath")
     cg.parm("prefixpartitionsubsets").set(0)
     res.nodes["componentgeometry"] = cg
@@ -411,13 +413,9 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     # Matheus pegou). Sem toggle para desligar, o nome vira 'default'
     # em vez do nome do no ('assign').
     cm.parm("variantname").set("default")
-    cm.parm("nummaterials").set(len(res.parts_bound))
-    for i, parte in enumerate(res.parts_bound, start=1):
-        # material unico: o asset inteiro; senao o subset com o mesmo nome
-        # (caminho medido: /ASSET/geo/<mesh>/<parte>)
-        padrao = "/ASSET/geo" if single else "/ASSET/geo/*/%s" % parte
-        cm.parm("primpattern%d" % i).set(padrao)
-        cm.parm("matspecpath%d" % i).set("/ASSET/mtl/%s" % parte)
+    # padroes em _bind_parts (unico lugar): cobrem malha plana E aninhada
+    # em /geo/render quando ha branches de proxy/simproxy
+    _bind_parts(cm, res.parts_bound, single)
     res.nodes["componentmaterial"] = cm
 
     # -- saida ------------------------------------------------------------
@@ -643,7 +641,14 @@ def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
 def _bind_parts(cm, ligadas, single):
     cm.parm("nummaterials").set(len(ligadas))
     for i, parte in enumerate(ligadas, start=1):
-        padrao = "/ASSET/geo" if single else "/ASSET/geo/*/%s" % parte
+        # dois padroes (lista separada por espaco): sem branches a malha
+        # fica em /geo/<mesh>/<subset>; com proxy/simproxy o
+        # componentgeometry aninha em /geo/render/<mesh>/<subset> --
+        # MEDIDO no A/B (Zea): so' com /geo/*/ o USD saia com ZERO binds
+        # ("nao mostra o shader no render"); `**` no meio nao casa.
+        padrao = ("/ASSET/geo" if single
+                  else "/ASSET/geo/*/{p} /ASSET/geo/render/*/{p}".format(
+                      p=parte))
         cm.parm("primpattern%d" % i).set(padrao)
         cm.parm("matspecpath%d" % i).set("/ASSET/mtl/%s" % parte)
 

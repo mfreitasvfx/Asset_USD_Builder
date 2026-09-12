@@ -661,3 +661,28 @@ Janela: no SCAN os checkboxes de Branches passam a REFLETIR o perfil
 (maxtree/kitbash acendem; desmarcar antes do BUILD sobrepoe --
 ferramenta adaptativa). Smoke: rede gerada = hip dele (topologia,
 parms, cor final e contagem 493 prims/368 pts identicas).
+
+## Proxy ligado = shader sumia do render: bind perdido DE NOVO (2026-09-12)
+
+O Matheus reportou: com proxy (ate' feito a mao) o shader nao aparece no
+render. NAO e' viewport/purpose: A/B estrutural mostrou o USD com proxy
+saindo com ZERO binds (sem proxy: 6). Causa: com branches, o
+componentgeometry ANINHA a malha em /ASSET/geo/render/<mesh>/<subset> e
+o padrao de bind `/ASSET/geo/*/<parte>` (um nivel de curinga) deixa de
+casar. Detalhe: `**` no MEIO do caminho nao casa no componentmaterial
+(medido; `/ASSET/geo/**` no fim e `%type:GeomSubset` funcionam).
+
+Conserto: _bind_parts vira o UNICO lugar que monta padrao (o caminho
+sem variantes tinha uma copia inline -- unificado) e usa DOIS padroes
+separados por espaco: `/ASSET/geo/*/<p> /ASSET/geo/render/*/<p>`.
+PROVA: A/B Zea com 6 binds nos dois casos e husk/Karma com renders
+PIXEL-IDENTICOS (hoiiotool --diff PASS). Purposes conferidos: proxy
+prim purpose=proxy, simproxy invisivel.
+
+Nota de viewport p/ o Matheus: GL/Storm mostram purpose guide+proxy
+(UsdRenderers.json do HFS), Karma/V-Ray/RenderMan mostram render
+(medido nos UsdRenderers.json de cada um) -- entao GL mostra o proxy
+chapado de cor e o delegate mostra o shader; e' o desenho do USD.
+
+Extra: sop.layoutChildren() no fim da montagem da geometria -- os nos
+criados por codigo nasciam empilhados ("fica bagunçado").
