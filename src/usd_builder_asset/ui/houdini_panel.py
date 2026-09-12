@@ -88,6 +88,24 @@ class Panel(QtWidgets.QWidget):
         wrap.setLayout(linha)
         fF.addRow("Asset Folder", wrap)
 
+        # linha separadora + Output Folder logo abaixo (pedido do Matheus)
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.HLine)
+        sep.setFrameShadow(QtWidgets.QFrame.Sunken)
+        fF.addRow(sep)
+
+        linha2 = QtWidgets.QHBoxLayout()
+        self.edSaida = QtWidgets.QLineEdit(
+            "C:/Users/Matheus/Downloads/MaxToLama/Testes/lops_ui")
+        bt2 = QtWidgets.QPushButton("...")
+        bt2.setFixedWidth(30)
+        bt2.clicked.connect(lambda: self._escolher(self.edSaida))
+        linha2.addWidget(self.edSaida)
+        linha2.addWidget(bt2)
+        wrap2 = QtWidgets.QWidget()
+        wrap2.setLayout(linha2)
+        fF.addRow("Output Folder", wrap2)
+
         # perfil: Auto (o scanner decide) ou o usuario MARCA
         self.cbPerfil = QtWidgets.QComboBox()
         self.cbPerfil.addItem("Auto — scanner decides", "auto")
@@ -120,7 +138,7 @@ class Panel(QtWidgets.QWidget):
         vO.addWidget(self.lista)
         v1.addWidget(gO, 1)
 
-        gR = QtWidgets.QGroupBox("Renderers & Output")
+        gR = QtWidgets.QGroupBox("Renderers")
         fR = QtWidgets.QFormLayout(gR)
         hb = QtWidgets.QHBoxLayout()
         self.cks = {}
@@ -138,18 +156,6 @@ class Panel(QtWidgets.QWidget):
             "Two-Sided (merge <Name>_Back textures as leaf back side)")
         self.ckTwoSided.setChecked(False)
         fR.addRow(self.ckTwoSided)
-
-        linha2 = QtWidgets.QHBoxLayout()
-        self.edSaida = QtWidgets.QLineEdit(
-            "C:/Users/Matheus/Downloads/MaxToLama/Testes/lops_ui")
-        bt2 = QtWidgets.QPushButton("...")
-        bt2.setFixedWidth(30)
-        bt2.clicked.connect(lambda: self._escolher(self.edSaida))
-        linha2.addWidget(self.edSaida)
-        linha2.addWidget(bt2)
-        wrap2 = QtWidgets.QWidget()
-        wrap2.setLayout(linha2)
-        fR.addRow("Output Folder", wrap2)
         v1.addWidget(gR)
 
         linha3 = QtWidgets.QHBoxLayout()
