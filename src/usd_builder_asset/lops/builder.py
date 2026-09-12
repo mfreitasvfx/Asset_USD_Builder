@@ -208,8 +208,18 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
                         for v, p in variants]
 
     stage = parent or hou.node("/stage")
-    net = stage.createNode("subnet",
-                           "USD_Builder_Asset_" + _fbx.material_key(nome))
+    # o subnet leva o NOME DO ASSET, sem prefixo (pedido do Matheus:
+    # "o nome do subnetwork deveria ter o nome do asset que ele ta
+    # importando" -- o prefixo USD_Builder_Asset_ so escondia o nome).
+    # Dedup explicito com _N: o auto-rename do Houdini INCREMENTA o
+    # digito final e um rebuild do Zea_01_04 viraria "Zea_01_05" --
+    # nome de OUTRO asset real da biblioteca (medido).
+    base_nome = _fbx.material_key(nome)
+    alvo, i = base_nome, 0
+    while stage.node(alvo) is not None:
+        i += 1
+        alvo = "%s_%d" % (base_nome, i)
+    net = stage.createNode("subnet", alvo)
     net.moveToGoodPosition()
     # padrao de cores do Asset_USD_Builder (lido do PythonModule dele):
     # planta verde-oliva, objeto azul, variante laranja; geo amarelo-palha,

@@ -7,7 +7,7 @@
 Etapas numeradas, como no Asset_USD_Builder do Carlo:
     1 - SCAN          le a pasta e lista os objetos (KitBash)
     2 - BUILD ASSETS  monta a rede em /stage SEM escrever -- da' para
-                      abrir o subnet USD_Builder_Asset_* e alterar antes
+                      abrir o subnet (nome do asset) e alterar antes
     3 - EXPORT USD's  aperta o execute dos componentoutput montados
 
 A janela nao contem regra nenhuma: scanner/perfis/builder fazem o trabalho,
@@ -401,7 +401,7 @@ class Panel(QtWidgets.QWidget):
     def _build(self):
         """Etapa 2: monta a rede em /stage SEM escrever.
 
-        Da' para abrir o subnet USD_Builder_Asset_* e mexer no que quiser
+        Da' para abrir o subnet (nome do asset) e mexer no que quiser
         antes do export -- o pedido do Matheus: 'chegar e alterar'.
         """
         if self._asset is None:
@@ -505,8 +505,8 @@ class Panel(QtWidgets.QWidget):
         self._diz(t.build_time())
         self._diz("-" * 10 + " FINISHED BUILDING (%d) " % len(self._builds)
                   + "-" * 10)
-        self._diz("Confira/altere os subnets USD_Builder_Asset_* em /stage "
-                  "e aperte 3 — EXPORT USD's.")
+        self._diz("Check/tweak the asset subnets in /stage "
+                  "and press 3 — EXPORT USD's.")
 
     def _update_materials(self):
         """Reconstroi so' os materiais (o UPDATE ALL SETTINGS do HDA).

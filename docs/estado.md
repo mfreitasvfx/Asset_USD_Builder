@@ -715,3 +715,12 @@ Conserto: wrangle nice_color depois do color1 -- rgbtohsv, mantem o
 matiz (e' ele que distingue os assets) e sobe saturacao para
 fit(0.55..0.95) e brilho para fit(0.60..0.95). Medido no chain real:
 01_04/05/06 e Building_01/02 todos vivos e distintos.
+
+## Subnet com o nome do asset, sem prefixo (2026-09-12)
+
+Pedido do Matheus: o subnet em /stage leva o nome do asset que esta
+importando (MT_PM_V93_Zea_mays_01_04), nao mais USD_Builder_Asset_<...>.
+Armadilha MEDIDA no caminho: o auto-rename do Houdini incrementa o
+digito final, e um REBUILD do Zea_01_04 nascia como "Zea_01_05" --
+nome de outro asset real. Dedup explicito: segundo build do mesmo
+asset vira <nome>_1, _2... Mensagens da janela atualizadas.
