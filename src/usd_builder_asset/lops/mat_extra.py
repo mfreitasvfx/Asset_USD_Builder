@@ -297,7 +297,8 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.set(brdf, "translucency", "6")          # SSS (enum medido)
         w.set(brdf, "refract_thin_walled", True)
         w.set(brdf, "option_double_sided", True)
-        w.set(brdf, "refract", [1.0, 1.0, 1.0, 1.0])
+        # refract fica no DEFAULT (preto) -- apontado pelo Matheus: com
+        # thin-walled SSS, refract=1 deixava a folha vitrea/transparente
         if "opacity" in maps:
             w.set(brdf, "opacity_mode", "1")      # Clip
         w.set(brdf, "translucency_amount", s["subsurface"])

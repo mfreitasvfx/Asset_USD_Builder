@@ -531,3 +531,19 @@ O Matheus pediu pesquisa NOS MANUAIS antes de mexer -- feito
    Verificado no USD do Zea: 12x BRDFBump (map_type 1, base_brdf
    conectado), folhas com fog_color_tex.connect + translucency=6 +
    amount=0.25.
+
+## refract no default + auditoria de parms (2026-09-11, cont.)
+
+1. **refract=[1,1,1,1] REMOVIDO** (erro apontado pelo Matheus): com
+   thin-walled SSS, refract branco deixava a folha vitrea. Fica o
+   default (preto). Verificado: 0 ocorrencias no USD novo.
+2. **"Parametros que nao aparecem"** -- auditoria completa (material de
+   folha com TODOS os papeis, 3 renderers): um unico aviso, o
+   intencional do displacement. Todos os sets pegam. O que engana:
+   (a) a UI do vfh esconde secoes condicionais (Translucency so aparece
+   com modo != None, roughness muda o rotulo do glossiness, etc.);
+   (b) o tradutor NAO autora valor igual ao default do plugin
+   (shader_skipdefvalparms) -- ex.: option_double_sided default ja e'
+   True, entao setar True nao aparece no USD e esta CERTO assim.
+   Medido: double_sided default True, thin_walled default False (esse
+   autora), opacity_mode default Stochastic (Clip autora).
