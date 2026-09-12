@@ -207,14 +207,27 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             variants = [(v, _share_textures(p, tex_dir, res))
                         for v, p in variants]
 
+    # -- geometria: resolvida ANTES do subnet (o nome dele vem do fbx e
+    # asset sem geometria nao deixa subnet vazio para tras) --------------
+    if geo_path is None:
+        lods = profile.lods_for(asset)
+        lod = lod or (lods[0] if lods else None)
+        geo_path = asset.geometry.get(lod) if lod else asset.default_geo
+    if not geo_path:
+        res.warn("asset sem geometria; nada a montar")
+        return res
+
     stage = parent or hou.node("/stage")
-    # o subnet leva o NOME DO ASSET, sem prefixo (pedido do Matheus:
-    # "o nome do subnetwork deveria ter o nome do asset que ele ta
-    # importando" -- o prefixo USD_Builder_Asset_ so escondia o nome).
-    # Dedup explicito com _N: o auto-rename do Houdini INCREMENTA o
-    # digito final e um rebuild do Zea_01_04 viraria "Zea_01_05" --
-    # nome de OUTRO asset real da biblioteca (medido).
-    base_nome = _fbx.material_key(nome)
+    # o subnet leva o NOME DO FBX importado (pedido do Matheus); no
+    # KitBash o arquivo e' um so' ("1.fbx") com varios assets, entao la'
+    # vale o nome do OBJETO. Dedup explicito com _N: o auto-rename do
+    # Houdini INCREMENTA o digito final e um rebuild do Zea_01_04
+    # viraria "Zea_01_05" -- nome de OUTRO asset real (medido).
+    if asset_name is not None:
+        base_nome = _fbx.material_key(asset_name)
+    else:
+        base_nome = _fbx.material_key(
+            os.path.splitext(os.path.basename(str(geo_path)))[0])
     alvo, i = base_nome, 0
     while stage.node(alvo) is not None:
         i += 1
@@ -230,15 +243,6 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         net.setColor(hou.Color(1.0, 0.6, 0.0))      # NodeColorObjVar
     else:
         net.setColor(hou.Color(0.29, 0.56, 0.89))   # NodeColorObj
-
-    # -- geometria -------------------------------------------------------
-    if geo_path is None:
-        lods = profile.lods_for(asset)
-        lod = lod or (lods[0] if lods else None)
-        geo_path = asset.geometry.get(lod) if lod else asset.default_geo
-    if not geo_path:
-        res.warn("asset sem geometria; nada a montar")
-        return res
 
     cg = net.createNode("componentgeometry", "geo")
     cg.setColor(hou.Color(1.0, 1.0, 0.5))           # cor do HDA p/ geo

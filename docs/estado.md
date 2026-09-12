@@ -724,3 +724,13 @@ Armadilha MEDIDA no caminho: o auto-rename do Houdini incrementa o
 digito final, e um REBUILD do Zea_01_04 nascia como "Zea_01_05" --
 nome de outro asset real. Dedup explicito: segundo build do mesmo
 asset vira <nome>_1, _2... Mensagens da janela atualizadas.
+
+## Subnet nomeado pelo FBX (2026-09-12, cont.)
+
+Ajuste do pedido anterior: "o nome do subnetwork tem que pegar o nome
+do fbx". Pasta-e-asset (Maxtree/Megascans): subnet = nome do ARQUIVO
+(MT_PM_V93_Zea_mays_01_04_High); KitBash (asset_grain=object, arquivo
+"1.fbx" com dezenas de assets): continua o nome do OBJETO. A resolucao
+do geo_path subiu para antes do subnet -- de quebra, asset sem
+geometria nao deixa mais subnet vazio em /stage. Prim/USD seguem com o
+nome do asset (so o subnet muda). Rebuild do mesmo fbx: _High_1.
