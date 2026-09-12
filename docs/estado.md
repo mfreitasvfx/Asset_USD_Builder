@@ -686,3 +686,16 @@ chapado de cor e o delegate mostra o shader; e' o desenho do USD.
 
 Extra: sop.layoutChildren() no fim da montagem da geometria -- os nos
 criados por codigo nasciam empilhados ("fica bagunçado").
+
+## Two-Sided sem textura de verso: espelha a da frente (2026-09-12)
+
+O Matheus marcou o box no Zea e nada foi criado. Certo pelo codigo de
+ontem (so agia com <Parte>_Back, e Maxtree nao tem), errado pelo video:
+o Jonas monta o 2Sided da folha com a MESMA textura dos dois lados.
+_funde_verso agora, alem de fundir _Back reais, espelha
+back_basecolor=basecolor nas partes de folha (mesmo criterio do caminho
+V-Ray: nome de folha OU mapa de translucency). Medido no Zea com o box:
+Leaf_01-04, Bud_01-03 e Flower_01 ganham twosided (Karma) e Mtl2Sided
+(V-Ray); Fruit e Trunk seguem de um lado so. No V-Ray isso TROCA o
+modelo da folha de thin-walled+SSS para o 2Sided do video (translucency
+no slot do 2Sided, thin-walled fora).

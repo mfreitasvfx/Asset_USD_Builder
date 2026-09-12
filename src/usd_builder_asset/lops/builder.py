@@ -483,11 +483,17 @@ def _liga_output0(net, co):
 
 
 def _funde_verso(partes):
-    """'<Parte>_Back' vira papeis back_* dentro de '<Parte>'.
+    """Com o box Two-Sided ligado, garante papeis back_* nas partes.
 
-    O esquema frente/verso do video das folhas do Jonas Noell: so' quando
-    o pacote TRAZ textura de verso. Os builders ligam o two-sided de cada
-    renderer quando veem back_basecolor.
+    Duas fontes, na ordem do video das folhas do Jonas Noell:
+    1. o pacote TRAZ textura de verso ('<Parte>_Back' vira back_* dentro
+       de '<Parte>');
+    2. parte de folha SEM verso proprio usa a MESMA textura dos dois
+       lados (back_basecolor = basecolor) -- e' o que o Jonas faz no
+       video, e sem isso marcar o box num Maxtree (que nao tem _Back
+       nenhum) nao criava nada (reportado pelo Matheus, 2026-09-12).
+    Os builders ligam o two-sided de cada renderer quando veem
+    back_basecolor.
     """
     out, versos = {}, {}
     for p, m in partes.items():
@@ -506,6 +512,13 @@ def _funde_verso(partes):
         else:
             for papel, arq in m.items():
                 alvo["back_" + papel] = arq
+    for nome, m in out.items():
+        # mesmo criterio de folha do caminho V-Ray (folha por nome, ou
+        # organico fino com mapa de translucency); tronco/props ficam
+        # de um lado so' -- two-sided neles so' pesaria o shader
+        if "back_basecolor" not in m and "basecolor" in m \
+                and (_mats.eh_folha(nome) or "translucency" in m):
+            m["back_basecolor"] = m["basecolor"]
     return out
 
 

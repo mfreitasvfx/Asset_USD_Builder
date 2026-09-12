@@ -46,10 +46,10 @@ assemble → convexdecomposition). Conferido por diff contra o
 
 ## Two-sided (frente/verso, vídeo das folhas do Jonas)
 
-Convenção: parte `<Nome>_Back` nas texturas vira papéis `back_*` da
-parte-base e liga o two-sided do renderer. NENHUMA biblioteca sua tem
-textura de verso hoje — checar quando houver (ou duplicando uma na mão,
-como o Jonas fez):
+Duas fontes: parte `<Nome>_Back` nas texturas vira papéis `back_*` da
+parte-base; e (novo, 2026-09-12) folha SEM verso próprio usa a MESMA
+textura dos dois lados quando o box está ligado — dá pra checar no
+Zea direto: Leaf/Bud/Flower ganham o two-sided, Fruit/Trunk não.
 
 - [ ] V-Ray: `Mtl2Sided` (front/back/translucency_tex) — conferido no
       USD com mapa sintético; falta render real.
