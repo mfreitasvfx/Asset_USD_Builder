@@ -40,7 +40,7 @@ class Profile(object):
                  rough_source="roughness", plant_workflow=False,
                  texture_subdirs=(), notes="",
                  proxy=False, simproxy=False, center=False,
-                 unit_scale=0.01):
+                 unit_scale=0.01, proxy_style="reduce"):
         # unit_scale DEFAULT 0.01 (decisao do Matheus, 2026-09-12): o
         # pipeline exporta em CENTIMETROS (Max, KitBash, Megascans FBX) e
         # o USD e' metros. O Unit Scale da janela (0 = do perfil) sobrepoe.
@@ -63,6 +63,9 @@ class Profile(object):
         # fonte em cm (KitBash) -> USD em metros. Medido no A/B: sem isso o
         # asset sai 100x maior que o build de referencia do Matheus.
         self.unit_scale = unit_scale
+        # como montar os branches: 'reduce' (polyreduce/hull, kitbash) ou
+        # 'plant' (setup do Matheus p/ plantas -- builder._branches_planta)
+        self.proxy_style = proxy_style
 
     def lods_for(self, asset):
         """Quais LODs este perfil quer, dado o que a pasta tem."""
@@ -118,6 +121,9 @@ PERFIS = {
         asset_grain="folder",
         rough_source="glossiness",
         plant_workflow=True,
+        # acrescimo de exports pedido pelo Matheus (2026-09-12): proxy com
+        # cor aleatoria por asset + simproxy convexo, copiados do hip dele
+        proxy=True, simproxy=True, proxy_style="plant",
         notes="uma planta = uma pasta com ~12 materiais; sem LOD no pacote",
     ),
 
@@ -202,6 +208,6 @@ def custom(base_key, **over):
         rough_source=base.rough_source, plant_workflow=base.plant_workflow,
         texture_subdirs=base.texture_subdirs, notes=base.notes,
         proxy=base.proxy, simproxy=base.simproxy, center=base.center,
-        unit_scale=base.unit_scale)
+        unit_scale=base.unit_scale, proxy_style=base.proxy_style)
     campos.update(over)
     return Profile(**campos)

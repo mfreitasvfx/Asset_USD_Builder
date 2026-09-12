@@ -56,6 +56,91 @@ class Result(object):
         return "\n".join(linhas)
 
 
+def _tipo_sop(nome_tipo):
+    """O node type, ou None -- p/ HDAs que podem faltar noutra maquina."""
+    return hou.sopNodeTypeCategory().nodeType(nome_tipo)
+
+
+def _branches_planta(sop, tail, nome_prim, quer_proxy, quer_sim):
+    """Proxy/simproxy p/ plantas -- COPIA do setup do Matheus.
+
+    Medido do hip dele ('asst builder.hiplc', Zea, 2026-09-12), no e parm:
+      proxy   : delete_small_parts (Labs, 2.39% da maior peca) ->
+                lowres_geo (HDA dele, 2%) -> asset_name na prim ->
+                Color 'Random from Attribute' -> Cd promovido a DETAIL
+                (inclass=1 prim, outclass=0 detail -- medido): UMA cor
+                aleatoria por asset, p/ enxergar o set no GL
+      simproxy: lowres_geo -> assemble -> convexdecomposition
+      cada output (default incluso) fecha com Add 'Remove Unused Points'
+    """
+    add1 = sop.createNode("add", "add1")
+    add1.parm("remove").set(1)             # Remove Unused Points (medido)
+    add1.setInput(0, tail)
+    sop.node("default").setInput(0, add1)
+
+    base = tail
+    if _tipo_sop("labs::delete_small_parts::1.0") is not None:
+        dsp = sop.createNode("labs::delete_small_parts::1.0",
+                             "delete_small_parts1")
+        dsp.setInput(0, base)
+        dsp.parm("mode").set(0)
+        dsp.parm("threshold").set(2.39)
+        base = dsp
+
+    if _tipo_sop("lowres_geo::1.1.1") is not None:
+        low = sop.createNode("lowres_geo::1.1.1", "lowres_geo1")
+    else:
+        # sem o HDA do Matheus (outra maquina): polyreduce chega perto
+        low = sop.createNode("polyreduce::2.0", "lowres_geo1")
+    low.parm("percentage").set(2.0)
+    low.setInput(0, base)
+
+    if quer_proxy:
+        wr = sop.createNode("attribwrangle", "set_color_data")
+        wr.setInput(0, low)
+        wr.parm("class").set(1)
+        wr.parm("snippet").set('s@asset_name = chs("asset_name");')
+        ptg = wr.parmTemplateGroup()
+        ptg.append(hou.StringParmTemplate("asset_name", "Asset Name", 1))
+        wr.setParmTemplateGroup(ptg)
+        wr.parm("asset_name").set("/" + nome_prim)
+
+        cor = sop.createNode("color", "color1")
+        cor.setInput(0, wr)
+        cor.parm("class").set(1)           # Primitive
+        cor.parm("colortype").set(4)       # Random from Attribute
+        cor.parm("seed").set(0.97)
+        cor.parm("rampattribute").set("asset_name")
+
+        promo = sop.createNode("attribpromote", "attribpromote1")
+        promo.setInput(0, cor)
+        promo.parm("inname").set("Cd")
+        promo.parm("inclass").set(1)
+        promo.parm("outclass").set(0)
+
+        adel = sop.createNode("attribdelete", "attribdelete1")
+        adel.setInput(0, promo)
+        adel.parm("primdel").set("asset_name")
+
+        add2 = sop.createNode("add", "add2")
+        add2.parm("remove").set(1)
+        add2.setInput(0, adel)
+        sop.node("proxy").setInput(0, add2)
+
+    if quer_sim:
+        asm = sop.createNode("assemble", "assemble1")
+        asm.setInput(0, low)
+        cvx = sop.createNode("convexdecomposition", "convexdecomposition1")
+        cvx.setInput(0, asm)
+        adel2 = sop.createNode("attribdelete", "attribdelete2")
+        adel2.setInput(0, cvx)
+        adel2.parm("primdel").set("class")  # convexdecomposition escreve
+        add3 = sop.createNode("add", "add3")
+        add3.parm("remove").set(1)
+        add3.setInput(0, adel2)
+        sop.node("simproxy").setInput(0, add3)
+
+
 def build_asset(asset, profile, out_dir=None, asset_name=None,
                 renderers=("karma", "arnold", "renderman", "vray"), parent=None,
                 lod=None, write=True, disp_scale=0.01,
@@ -184,22 +269,30 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
 
     sop.node("default").setInput(0, tail)
 
-    if getattr(profile, "proxy", False):
-        # proxy leve p/ GL. O template usa VDB->remesh->polyreduce; aqui e'
-        # polyreduce direto (medido) -- pra hard-surface o resultado serve e
-        # evita dois nos com parms nao medidos. Trocar por VDB se faltar.
-        pr = sop.createNode("polyreduce::2.0", "proxy_reduce")
-        pr.setInput(0, tail)
-        pr.parm("percentage").set(6.0)
-        sop.node("proxy").setInput(0, pr)
+    quer_proxy = getattr(profile, "proxy", False)
+    quer_sim = getattr(profile, "simproxy", False)
+    if getattr(profile, "proxy_style", "reduce") == "plant" \
+            and (quer_proxy or quer_sim):
+        # setup do Matheus p/ plantas (copiado do hip dele; ver funcao)
+        _branches_planta(sop, tail, _naming.usd_prim_name(nome),
+                         quer_proxy, quer_sim)
+    else:
+        if quer_proxy:
+            # proxy leve p/ GL. O template usa VDB->remesh->polyreduce; aqui
+            # e' polyreduce direto (medido) -- pra hard-surface o resultado
+            # serve e evita dois nos com parms nao medidos.
+            pr = sop.createNode("polyreduce::2.0", "proxy_reduce")
+            pr.setInput(0, tail)
+            pr.parm("percentage").set(6.0)
+            sop.node("proxy").setInput(0, pr)
 
-    if getattr(profile, "simproxy", False):
-        # convex hull p/ os LOPs de fisica (Edit/Drop). O template faz por
-        # peca via foreach; v1 e' um hull do objeto inteiro -- suficiente
-        # pra prop de kitbash, e sem block begin/end programatico.
-        sw = sop.createNode("shrinkwrap::2.0", "simproxy_hull")
-        sw.setInput(0, tail)
-        sop.node("simproxy").setInput(0, sw)
+        if quer_sim:
+            # convex hull p/ os LOPs de fisica (Edit/Drop). O template faz
+            # por peca via foreach; v1 e' um hull do objeto inteiro --
+            # suficiente pra prop de kitbash.
+            sw = sop.createNode("shrinkwrap::2.0", "simproxy_hull")
+            sw.setInput(0, tail)
+            sop.node("simproxy").setInput(0, sw)
     cg.parm("partitionattribs").set("shop_materialpath")
     cg.parm("prefixpartitionsubsets").set(0)
     res.nodes["componentgeometry"] = cg

@@ -359,6 +359,11 @@ class Panel(QtWidgets.QWidget):
             self._diz(traceback.format_exc())
             return
         self._recentes_salva(pasta)
+        # branches: o perfil da' o ponto de partida, o usuario sobrepoe
+        # desmarcando antes do BUILD (ferramenta adaptativa)
+        self.ckProxy.setChecked(bool(getattr(self._profile, "proxy", False)))
+        self.ckSimproxy.setChecked(
+            bool(getattr(self._profile, "simproxy", False)))
         self.lbResumo.setText(self._asset.resumo().replace("   ", "  "))
         self._diz(self._asset.resumo())
         for a in avisos:

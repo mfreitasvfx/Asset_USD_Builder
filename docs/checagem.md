@@ -21,6 +21,20 @@ espera o OLHO do artista. Marcar e anotar o resultado aqui.
 - [ ] **Karma**: já visto verde no headless; conferir folhas com SSS no
       XPU.
 
+## Branches de planta (proxy/simproxy do SEU hip, 2026-09-12)
+
+A ferramenta agora replica o seu setup do Zea (delete_small_parts →
+lowres_geo 2% → cor aleatória por asset → Cd no detail; simproxy =
+assemble → convexdecomposition). Conferido por diff contra o
+`asst builder.hiplc`: mesma topologia, mesmos parms, mesma cor final
+(magenta 0.61/0.02/0.90) e mesma contagem (493 prims / 368 pontos).
+
+- [ ] SCAN no Zea pela janela: Branches proxy+simproxy devem acender
+      sozinhos (perfil maxtree); BUILD e conferir o roxo no GL.
+- [ ] Simproxy: hulls do convexdecomposition no viewport (Edit/Drop LOP).
+- [ ] Export: USD ganha os purposes proxy/guide sem tocar no render geo
+      ("acréscimo de exports, não sobrescreve").
+
 ## Gerais (de rodadas anteriores)
 
 - [ ] Post Apocalypse: look no V-Ray com MetaImageFile+OCIO (rebuild

@@ -631,3 +631,33 @@ Decisao do Matheus: o pipeline exporta em cm (Max/KitBash/Megascans) e
 o USD e' metros. Default do Profile mudou de 1.0 para 0.01 -- todos os
 perfis herdam. VERIFICADO no Zea rebuild: milho com 2.09 m de altura
 (antes saia 100x). O Unit Scale da janela (0 = do perfil) sobrepoe.
+
+## Branches de planta copiados do hip do Matheus (2026-09-12)
+
+Ele montou a mao, no Zea, os branches de proxy/simproxy e pediu para a
+ferramenta replicar -- "nao sobrescreve os outros, e' um ACRESCIMO de
+exports" para Maxtree/plantas. Dump medido do `asst builder.hiplc`
+(Downloads/Maxtree ... /FBX_Export):
+
+- proxy   : labs::delete_small_parts (mode 0, threshold 2.39) ->
+  lowres_geo::1.1.1 (HDA dele em Documents/houdini21.0/otls, 2%) ->
+  wrangle `s@asset_name = chs("asset_name")` (spare parm, "/<prim>") ->
+  Color class=prim, colortype=4 (Random from Attribute), seed 0.97,
+  attrib asset_name -> attribpromote Cd prim->DETAIL (inclass=1,
+  outclass=0 -- menu medido: 0=detail!) -> attribdelete asset_name.
+  Resultado: UMA cor aleatoria por asset (Zea = magenta .61/.02/.90).
+- simproxy: lowres_geo -> assemble -> convexdecomposition ->
+  attribdelete class.
+- TODOS os outputs (default incluso) fecham com Add remove=1 --
+  medido: "Remove Unused Points", limpeza inofensiva.
+
+Implementacao: `builder._branches_planta` (nomes de nos identicos aos
+dele), ligada por `Profile.proxy_style="plant"`; maxtree agora tem
+proxy=True, simproxy=True, proxy_style="plant". KitBash segue no
+estilo "reduce" (polyreduce/shrinkwrap) -- nada sobrescrito. Fallback:
+sem o HDA lowres_geo, entra polyreduce 2%.
+
+Janela: no SCAN os checkboxes de Branches passam a REFLETIR o perfil
+(maxtree/kitbash acendem; desmarcar antes do BUILD sobrepoe --
+ferramenta adaptativa). Smoke: rede gerada = hip dele (topologia,
+parms, cor final e contagem 493 prims/368 pts identicas).
