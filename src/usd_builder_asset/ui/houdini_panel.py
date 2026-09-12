@@ -67,31 +67,37 @@ class Panel(QtWidgets.QWidget):
         w1 = QtWidgets.QWidget()
         v1 = QtWidgets.QVBoxLayout(w1)
 
-        gF = QtWidgets.QGroupBox("Fonte")
+        gF = QtWidgets.QGroupBox("Source")
         fF = QtWidgets.QFormLayout(gF)
         linha = QtWidgets.QHBoxLayout()
-        self.edFonte = QtWidgets.QLineEdit()
+        # combo editavel com as ULTIMAS PASTAS abertas (pedido do Matheus:
+        # memoria de pelo menos 5)
+        self.edFonte = QtWidgets.QComboBox()
+        self.edFonte.setEditable(True)
+        self.edFonte.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+        for p in self._recentes_carrega():
+            self.edFonte.addItem(p)
+        self.edFonte.setCurrentText(
+            self.edFonte.itemText(0) if self.edFonte.count() else "")
         bt = QtWidgets.QPushButton("...")
         bt.setFixedWidth(30)
         bt.clicked.connect(lambda: self._escolher(self.edFonte))
-        linha.addWidget(self.edFonte)
+        linha.addWidget(self.edFonte, 1)
         linha.addWidget(bt)
         wrap = QtWidgets.QWidget()
         wrap.setLayout(linha)
-        fF.addRow("Pasta do asset", wrap)
+        fF.addRow("Asset Folder", wrap)
 
-        # perfil: Auto (o scanner decide) ou o usuario MARCA -- "nao seria
-        # melhor eu indicar isso marcando?" (Matheus). Evermotion/SpeedTree/
-        # Fab entram quando houver pasta real para medir.
+        # perfil: Auto (o scanner decide) ou o usuario MARCA
         self.cbPerfil = QtWidgets.QComboBox()
-        self.cbPerfil.addItem("Auto — o scanner decide", "auto")
+        self.cbPerfil.addItem("Auto — scanner decides", "auto")
         for chave, rotulo in (("megascans", "Megascans"),
-                              ("maxtree", "Maxtree (plantas)"),
+                              ("maxtree", "Maxtree (plants)"),
                               ("kitbash", "KitBash3D"),
-                              ("construido", "Ja construido"),
-                              ("generico", "Generico")):
+                              ("construido", "Already built"),
+                              ("generico", "Generic")):
             self.cbPerfil.addItem(rotulo, chave)
-        fF.addRow("Perfil", self.cbPerfil)
+        fF.addRow("Profile", self.cbPerfil)
 
         self.btScan = QtWidgets.QPushButton("1 — SCAN")
         self.btScan.clicked.connect(self._scan)
@@ -102,10 +108,10 @@ class Panel(QtWidgets.QWidget):
         v1.addWidget(gF)
 
         # objetos (kitbash) ou arquivos (set multi-FBX)
-        gO = QtWidgets.QGroupBox("Objetos / arquivos (KitBash)")
+        gO = QtWidgets.QGroupBox("Objects / Files (KitBash)")
         vO = QtWidgets.QVBoxLayout(gO)
         self.edFiltro = QtWidgets.QLineEdit()
-        self.edFiltro.setPlaceholderText("filtrar…")
+        self.edFiltro.setPlaceholderText("filter…")
         self.edFiltro.textChanged.connect(self._filtrar)
         vO.addWidget(self.edFiltro)
         self.lista = QtWidgets.QListWidget()
@@ -114,7 +120,7 @@ class Panel(QtWidgets.QWidget):
         vO.addWidget(self.lista)
         v1.addWidget(gO, 1)
 
-        gR = QtWidgets.QGroupBox("Renderers e saida")
+        gR = QtWidgets.QGroupBox("Renderers & Output")
         fR = QtWidgets.QFormLayout(gR)
         hb = QtWidgets.QHBoxLayout()
         self.cks = {}
@@ -127,6 +133,12 @@ class Panel(QtWidgets.QWidget):
         wrapR.setLayout(hb)
         fR.addRow("Renderers", wrapR)
 
+        # opt-in do two-sided na TELA PRINCIPAL (pedido do Matheus)
+        self.ckTwoSided = QtWidgets.QCheckBox(
+            "Two-Sided (merge <Name>_Back textures as leaf back side)")
+        self.ckTwoSided.setChecked(False)
+        fR.addRow(self.ckTwoSided)
+
         linha2 = QtWidgets.QHBoxLayout()
         self.edSaida = QtWidgets.QLineEdit(
             "C:/Users/Matheus/Downloads/MaxToLama/Testes/lops_ui")
@@ -137,7 +149,7 @@ class Panel(QtWidgets.QWidget):
         linha2.addWidget(bt2)
         wrap2 = QtWidgets.QWidget()
         wrap2.setLayout(linha2)
-        fR.addRow("Pasta de saida", wrap2)
+        fR.addRow("Output Folder", wrap2)
         v1.addWidget(gR)
 
         linha3 = QtWidgets.QHBoxLayout()
@@ -185,7 +197,7 @@ class Panel(QtWidgets.QWidget):
 
         hbP = QtWidgets.QHBoxLayout()
         self.ckProxy = QtWidgets.QCheckBox("proxy (GL)")
-        self.ckSimproxy = QtWidgets.QCheckBox("simproxy (fisica)")
+        self.ckSimproxy = QtWidgets.QCheckBox("simproxy (physics)")
         hbP.addWidget(self.ckProxy)
         hbP.addWidget(self.ckSimproxy)
         wrapP = QtWidgets.QWidget()
@@ -195,21 +207,21 @@ class Panel(QtWidgets.QWidget):
         # a escala vem diferente por biblioteca (KitBash em cm = 0.01,
         # Maxtree ja em metros = 1); 0 = usa a do perfil
         self.spUnit = spin(0.0)
-        fS.addRow("Unit Scale (0 = do perfil)", self.spUnit)
+        fS.addRow("Unit Scale (0 = from profile)", self.spUnit)
 
         self.ckTexShared = QtWidgets.QCheckBox(
-            "Texturas compartilhadas (UMA copia em <saida>/textures)")
+            "Shared textures (ONE copy in <out>/textures)")
         self.ckTexShared.setChecked(False)   # opcoes todas desligadas
         fS.addRow(self.ckTexShared)
 
         self.ckGallery = QtWidgets.QCheckBox(
-            "Asset Gallery no export (thumbnail GL implicito; "
-            "<saida>/asset_gallery.db)")
+            "Asset Gallery on export (implicit GL thumbnail; "
+            "<out>/asset_gallery.db)")
         self.ckGallery.setChecked(False)
         fS.addRow(self.ckGallery)
 
         self.ckTexRman = QtWidgets.QCheckBox(
-            "Converter .tex ACEScg p/ RenderMan (etapa do Asset_USD_Builder)")
+            "Convert .tex ACEScg for RenderMan (Asset_USD_Builder step)")
         self.ckTexRman.setChecked(False)
         fS.addRow(self.ckTexRman)
 
@@ -260,11 +272,50 @@ class Panel(QtWidgets.QWidget):
 
     # ------------------------------------------------------------------
 
+    # -- memoria das ultimas pastas (pedido: pelo menos 5) ---------------
+    _ARQ_RECENTES = os.path.join(
+        hou.homeHoudiniDirectory() if hasattr(hou, "homeHoudiniDirectory")
+        else os.path.expanduser("~"), "usd_builder_asset_recent.json")
+
+    def _recentes_carrega(self):
+        import json
+        try:
+            with open(self._ARQ_RECENTES, "r", encoding="utf-8") as fh:
+                return [p for p in json.load(fh) if os.path.isdir(p)][:8]
+        except Exception:
+            return []
+
+    def _recentes_salva(self, pasta):
+        import json
+        pasta = pasta.replace("\\", "/")
+        lista = [pasta] + [p for p in self._recentes_carrega()
+                           if p.lower() != pasta.lower()]
+        try:
+            with open(self._ARQ_RECENTES, "w", encoding="utf-8") as fh:
+                json.dump(lista[:8], fh, indent=1)
+        except Exception:
+            pass
+        self.edFonte.blockSignals(True)
+        atual = self.edFonte.currentText()
+        self.edFonte.clear()
+        for p in lista[:8]:
+            self.edFonte.addItem(p)
+        self.edFonte.setCurrentText(atual)
+        self.edFonte.blockSignals(False)
+
+    def _texto(self, campo):
+        return (campo.currentText() if isinstance(campo, QtWidgets.QComboBox)
+                else campo.text()).strip()
+
     def _escolher(self, campo):
         d = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Pasta", campo.text() or os.path.expanduser("~"))
+            self, "Folder", self._texto(campo) or os.path.expanduser("~"))
         if d:
-            campo.setText(d.replace("\\", "/"))
+            d = d.replace("\\", "/")
+            if isinstance(campo, QtWidgets.QComboBox):
+                campo.setCurrentText(d)
+            else:
+                campo.setText(d)
 
     def _diz(self, txt):
         self.log.appendPlainText(txt)
@@ -283,9 +334,9 @@ class Panel(QtWidgets.QWidget):
         _reload_core()
         from usd_builder_asset import library, profiles
         from usd_builder_asset.lops import builder
-        pasta = self.edFonte.text().strip()
+        pasta = self._texto(self.edFonte)
         if not os.path.isdir(pasta):
-            self._diz("pasta invalida: %r" % pasta)
+            self._diz("invalid folder: %r" % pasta)
             return
         self._diz("-" * 10 + " START SCANNING " + "-" * 10)
         try:
@@ -294,13 +345,14 @@ class Panel(QtWidgets.QWidget):
             if escolha and escolha != "auto":
                 # o usuario marcou: o perfil escolhido manda
                 self._profile = profiles.custom(escolha)
-                avisos = ["perfil marcado pelo usuario: %s"
+                avisos = ["profile picked by user: %s"
                           % self._profile.label]
             else:
                 self._profile, _etapas, avisos = profiles.plan(self._asset)
         except Exception:
             self._diz(traceback.format_exc())
             return
+        self._recentes_salva(pasta)
         self.lbResumo.setText(self._asset.resumo().replace("   ", "  "))
         self._diz(self._asset.resumo())
         for a in avisos:
@@ -314,24 +366,24 @@ class Panel(QtWidgets.QWidget):
             for c in self._asset.geo_files:
                 self.lista.addItem(os.path.basename(c))
             nome_m, mapas_m = library.atlas_material(self._asset)
-            self._diz("✓ %d arquivos no set; material do atlas: %s (%s). "
-                      "Selecione e 2 — BUILD ASSETS."
+            self._diz("✓ %d files in set; atlas material: %s (%s). "
+                      "Select and 2 — BUILD ASSETS."
                       % (self.lista.count(), nome_m,
                          ", ".join(sorted(mapas_m)) or "sem mapas"))
         elif self._profile.asset_grain == "object":
             self._modo = "objetos"
-            self._diz("lendo objetos do arquivo…")
+            self._diz("reading objects from file…")
             try:
                 for nome in builder.list_assets_in_file(
                         self._asset.default_geo):
                     self.lista.addItem(nome)
-                self._diz("✓ %d objetos. Selecione e 2 — BUILD ASSETS."
+                self._diz("✓ %d objects. Select and 2 — BUILD ASSETS."
                           % self.lista.count())
             except Exception:
                 self._diz(traceback.format_exc())
         else:
             self._modo = "pasta"
-            self._diz("perfil %s: Build monta a pasta inteira como 1 asset."
+            self._diz("profile %s: Build makes the whole folder ONE asset."
                       % self._profile.label)
         self._diz("-" * 10 + " FINISHED SCANNING " + "-" * 10)
 
@@ -342,7 +394,7 @@ class Panel(QtWidgets.QWidget):
         antes do export -- o pedido do Matheus: 'chegar e alterar'.
         """
         if self._asset is None:
-            self._diz("faca o 1 — SCAN primeiro.")
+            self._diz("run 1 — SCAN first.")
             return
         _reload_core()
         from usd_builder_asset import library, log, profiles
@@ -358,7 +410,7 @@ class Panel(QtWidgets.QWidget):
 
         renderers = tuple(r for r, ck in self.cks.items() if ck.isChecked())
         if not renderers:
-            self._diz("marque ao menos um renderer (aba USD BUILDER).")
+            self._diz("check at least one renderer (USD BUILDER tab).")
             return
         out = self.edSaida.text().strip() or None
         tex_dir = None
@@ -386,7 +438,7 @@ class Panel(QtWidgets.QWidget):
         if self._modo == "multifbx":
             arquivos = [i.text() for i in self.lista.selectedItems()]
             if not arquivos:
-                self._diz("selecione ao menos um arquivo da lista.")
+                self._diz("select at least one file from the list.")
                 return
             caminhos = {os.path.basename(c): c
                         for c in self._asset.geo_files}
@@ -409,7 +461,7 @@ class Panel(QtWidgets.QWidget):
             perfil = profiles.custom(base_key, **over)
             sel = [i.text() for i in self.lista.selectedItems()]
             if not sel:
-                self._diz("selecione ao menos um objeto da lista.")
+                self._diz("select at least one object from the list.")
                 return
             alvos = [(None, nome, None) for nome in sel]
         else:
@@ -430,7 +482,8 @@ class Panel(QtWidgets.QWidget):
                         asset_name=alvo, renderers=renderers, write=False,
                         geo_path=geo, parts=partes,
                         tex_dir=tex_dir, disp_scale=self.spDisp.value(),
-                        settings=settings, thumb_cfg=thumb_cfg)
+                        settings=settings, thumb_cfg=thumb_cfg,
+                        two_sided=self.ckTwoSided.isChecked())
                     self._builds.append(res)
                     self._diz("✓ Building Asset SubNet: %s ........... %d/%d"
                               % (res.asset_name, i + 1, len(alvos)))
@@ -451,14 +504,14 @@ class Panel(QtWidgets.QWidget):
         da etapa 2 sao remontados; geometria/binds/output ficam.
         """
         if not self._builds:
-            self._diz("nada montado — rode o 2 — BUILD ASSETS antes.")
+            self._diz("nothing built — run 2 — BUILD ASSETS first.")
             return
         _reload_core()
         from usd_builder_asset import log
         from usd_builder_asset.lops import builder
         renderers = tuple(r for r, ck in self.cks.items() if ck.isChecked())
         if not renderers:
-            self._diz("marque ao menos um renderer (aba USD BUILDER).")
+            self._diz("check at least one renderer (USD BUILDER tab).")
             return
         settings = {"basecolor_gamma": self.spGamma.value(),
                     "normal_scale": self.spNormal.value(),
@@ -517,7 +570,7 @@ class Panel(QtWidgets.QWidget):
         vivos = [r for r in self._builds
                  if r.nodes.get("componentoutput") is not None]
         if not vivos:
-            self._diz("nada montado — rode o 2 — BUILD ASSETS antes.")
+            self._diz("nothing built — run 2 — BUILD ASSETS first.")
             return
         out = self.edSaida.text().strip()
         db = (out.rstrip("/") + "/asset_gallery.db"

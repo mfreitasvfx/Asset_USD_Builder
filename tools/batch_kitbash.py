@@ -73,6 +73,8 @@ def _paralelo(a):
         base.append("--thumbs")
     if a.tex_renderman:
         base.append("--tex-renderman")
+    if a.two_sided:
+        base.append("--two-sided")
     # --gallery NAO desce para os workers: o pai registra tudo no final,
     # senao N processos brigam pelo mesmo SQLite
     for i in range(a.jobs):
@@ -133,6 +135,9 @@ def main():
     ap.add_argument("--tex-renderman", action="store_true",
                     help="converte mapas p/ .tex ACEScg no material RenderMan "
                          "(a etapa do Asset_USD_Builder)")
+    ap.add_argument("--two-sided", action="store_true",
+                    help="funde partes <Nome>_Back como verso (Mtl2Sided/"
+                         "twosided/arnold two_sided)")
     ap.add_argument("--thumbs", action="store_true",
                     help="gera thumbnail.png por asset (render karma -- "
                          "LENTO num set grande)")
@@ -219,6 +224,7 @@ def main():
                     renderers=renderers, geo_path=fonte,
                     parts=({mat_nome: mapas} if variantes is None else None),
                     variants=variantes, tex_dir=tex_dir, cleanup=True,
+                    two_sided=a.two_sided,
                     disp_scale=a.disp_scale, settings=settings,
                     thumb=a.thumbs)
                 print(res.resumo())

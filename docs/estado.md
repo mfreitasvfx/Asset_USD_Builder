@@ -604,3 +604,14 @@ Licao: grep de verificacao tem que mirar o TERMINAL exato.
 3. **Arnold valida no Houdini 22** (pedido): zea_h22 com 12 materiais e
    outputs:arnold:surface + kma + preview. No 21 o HDA do htoa nao
    carrega em hython; na GUI do 21 deve funcionar (check por tipo de no).
+
+## Two-sided opt-in, UI em ingles, pastas recentes (2026-09-11, cont.)
+
+1. Two-sided virou CHECKBOX na tela principal (USD BUILDER, junto dos
+   renderers), default OFF -- build_asset(two_sided=) / --two-sided no
+   lote. Sem o box, partes _Back ficam como materiais separados.
+2. UI do builder em INGLES (labels, botoes e mensagens principais do
+   log). Codigo/comentarios continuam PT.
+3. Asset Folder virou combo editavel com as ULTIMAS 8 pastas (persistem
+   em $HOME_HOUDINI/usd_builder_asset_recent.json; salvas a cada SCAN
+   valido, mais recente primeiro).

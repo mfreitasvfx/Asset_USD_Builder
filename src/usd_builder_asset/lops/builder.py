@@ -61,6 +61,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
                 lod=None, write=True, disp_scale=0.01,
                 geo_path=None, parts=None, variants=None,
                 tex_dir=None, cleanup=False, settings=None, thumb=False,
+                two_sided=False,
                 thumb_cfg=None):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 
@@ -97,9 +98,11 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     res.asset_name = nome
     partes_asset = parts if parts is not None else asset.parts
 
-    partes_asset = _funde_verso(partes_asset)
-    if variants:
-        variants = [(v, _funde_verso(p)) for v, p in variants]
+    if two_sided:
+        # opt-in do Matheus: so funde <Nome>_Back quando o box esta ligado
+        partes_asset = _funde_verso(partes_asset)
+        if variants:
+            variants = [(v, _funde_verso(p)) for v, p in variants]
     if tex_dir:
         partes_asset = _share_textures(partes_asset, tex_dir, res)
         if variants:
