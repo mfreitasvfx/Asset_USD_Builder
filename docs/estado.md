@@ -547,3 +547,21 @@ O Matheus pediu pesquisa NOS MANUAIS antes de mexer -- feito
    True, entao setar True nao aparece no USD e esta CERTO assim.
    Medido: double_sided default True, thin_walled default False (esse
    autora), opacity_mode default Stochastic (Clip autora).
+
+## Fase de LOOK: presets editaveis (2026-09-11, fechamento)
+
+"Funcionou, todas as texturas aparecem. o que falta agora e' ajuste de
+look" -- implementado o esquema de presets do KB3D_Converter_2.0:
+
+- presets.py: salvar(no selecionado) -> presets/<renderer>_<tipo>.cpio
+  (tipo leaf/trunk/default pelos tokens do nome); carregar() no
+  build_material ANTES da receita de codigo; aplicar_texturas()
+  re-aponta por papel (contrato dos nomes basicos) com aviso para
+  qualquer descasamento.
+- Botao SAVE PRESET na aba SETTINGS (builder selecionado).
+- Verificado ponta a ponta: ajuste do artista (amount 0.42, gloss 0.77)
+  herdado pelo proximo build de folha, texturas trocadas para o asset
+  novo, zero avisos.
+
+O caminho da qualidade Jonas Noell agora e': ajustar UMA folha no
+render, SAVE PRESET, e o lote inteiro herda.

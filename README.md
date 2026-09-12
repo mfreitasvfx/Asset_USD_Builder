@@ -139,3 +139,14 @@ O `3dsmaxbatch` não captura o stdout do Python, então o relatório aparece no
 `_usd_builder_asset.json` ao lado do FBX, não no log. E o log termina em
 "Task Completed with Error(s)" por causa de um aviso de variável de ambiente
 do V-Ray — não é o export.
+
+### Ajuste de look: presets editáveis (o esquema do KB3D_Converter_2.0)
+
+Com tudo renderizando, o look se faz UMA vez por tipo: capriche num
+builder (ex.: `vray_..._Leaf_02` — specular, translucency, colorcorrects),
+selecione o nó e aperte **SAVE PRESET** (aba SETTINGS). Vira
+`presets/<renderer>_<tipo>.cpio` (`leaf`/`trunk`/`default`). Todo build
+seguinte daquele renderer+tipo **carrega o preset** em vez da receita de
+código — só as texturas são re-apontadas, papel por papel. Papel sem nó
+no preset (ou nó sem mapa novo) gera aviso, nunca conserto calado.
+`UPDATE MATERIALS` aplica o preset novo nos builds já montados.

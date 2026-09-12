@@ -318,30 +318,50 @@ def build_material(parent, name, maps, renderers=("karma", "arnold"),
     """
     w = _W()
 
+    # PRESET primeiro (a fase de LOOK): se o usuario salvou um preset
+    # para (renderer, tipo da parte), ele manda -- so' as texturas sao
+    # re-apontadas por papel. Sem preset, a receita de codigo.
+    from .. import presets as _presets
+
+    def _ou_preset(prefixo, construir):
+        node = _presets.carregar(parent, prefixo, name)
+        if node is not None:
+            w.avisos.extend(_presets.aplicar_texturas(node, maps))
+            return node
+        return construir()
+
     ar = None
     if "arnold" in renderers:
         if arnold_available():
-            ar = build_arnold(parent, name, maps, plant, disp_scale, w,
-                              settings)
+            ar = _ou_preset("arnold",
+                            lambda: build_arnold(parent, name, maps, plant,
+                                                 disp_scale, w, settings))
         else:
             w.warn("HtoA nao esta nesta sessao; '%s' sai sem Arnold" % name)
 
-    km = build_karma(parent, name, maps, plant, disp_scale, w, settings) \
-        if "karma" in renderers else None
+    km = None
+    if "karma" in renderers:
+        km = _ou_preset("karma",
+                        lambda: build_karma(parent, name, maps, plant,
+                                            disp_scale, w, settings))
 
     from . import mat_extra
     rman = None
     if "renderman" in renderers:
         if mat_extra.renderman_available():
-            rman = mat_extra.build_renderman(parent, name, maps, plant,
-                                             disp_scale, w, settings)
+            rman = _ou_preset(
+                "renderman",
+                lambda: mat_extra.build_renderman(parent, name, maps, plant,
+                                                  disp_scale, w, settings))
         else:
             w.warn("RenderMan nao esta nesta sessao; '%s' sai sem" % name)
     vr = None
     if "vray" in renderers:
         if mat_extra.vray_available():
-            vr = mat_extra.build_vray(parent, name, maps, plant,
-                                      disp_scale, w, settings)
+            vr = _ou_preset(
+                "vray",
+                lambda: mat_extra.build_vray(parent, name, maps, plant,
+                                             disp_scale, w, settings))
         else:
             w.warn("V-Ray nao esta nesta sessao; '%s' sai sem" % name)
 

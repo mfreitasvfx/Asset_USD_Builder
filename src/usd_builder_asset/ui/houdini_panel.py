@@ -241,6 +241,15 @@ class Panel(QtWidgets.QWidget):
             "Settings atuais (geometria e binds ficam)")
         self.btUpdate.clicked.connect(self._update_materials)
         v2.addWidget(self.btUpdate)
+
+        self.btPreset = QtWidgets.QPushButton("SAVE PRESET (builder selecionado)")
+        self.btPreset.setMinimumHeight(34)
+        self.btPreset.setToolTip(
+            "Ajuste um builder (vray_*/karma_*/...) no capricho, selecione "
+            "o no e salve: TODO build seguinte daquele renderer+tipo "
+            "(leaf/trunk/default) usa o preset, so' trocando as texturas")
+        self.btPreset.clicked.connect(self._save_preset)
+        v2.addWidget(self.btPreset)
         v2.addStretch(1)
         abas.addTab(w2, "SETTINGS")
 
@@ -472,6 +481,29 @@ class Panel(QtWidgets.QWidget):
                     self._diz(traceback.format_exc())
         self._diz(t.build_time())
         self._diz("-" * 10 + " FINISHED UPDATING " + "-" * 10)
+
+    def _save_preset(self):
+        """Salva o builder selecionado como preset de look.
+
+        A fase de "ajuste de look": capricha num vray_Leaf_02, salva, e
+        toda folha V-Ray dos proximos builds herda -- so' as texturas
+        mudam (re-apontadas por papel).
+        """
+        _reload_core()
+        from usd_builder_asset import presets
+        sel = hou.selectedNodes()
+        if len(sel) != 1:
+            self._diz("selecione UM builder (karma_*/arnold_*/renderman_*/"
+                      "vray_*) dentro da materiallibrary.")
+            return
+        try:
+            alvo, tipo = presets.salvar(sel[0])
+        except ValueError as e:
+            self._diz(str(e))
+            return
+        self._diz("✓ PRESET salvo: %s (tipo '%s'). Builds seguintes desse "
+                  "renderer+tipo usam ele; UPDATE MATERIALS aplica nos "
+                  "builds atuais." % (alvo, tipo))
 
     def _export(self):
         """Etapa 3: executa os componentoutput montados na etapa 2.
