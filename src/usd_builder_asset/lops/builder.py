@@ -112,8 +112,21 @@ def _branches_planta(sop, tail, nome_prim, quer_proxy, quer_sim):
         cor.parm("seed").set(0.97)
         cor.parm("rampattribute").set("asset_name")
 
+        # o hash do Color distribui bem entre nomes parecidos (medido:
+        # 01_04/01_05/Building todos diferentes; VEX random_shash COLIDE),
+        # mas devolve RGB arbitrario e metade sai escuro/lamacento
+        # (Building deu quase preto -- o "nao funciona" do Matheus).
+        # Normaliza em HSV: matiz fica, saturacao/brilho ganham piso alto.
+        nc = sop.createNode("attribwrangle", "nice_color")
+        nc.setInput(0, cor)
+        nc.parm("class").set(1)
+        nc.parm("snippet").set(
+            "vector hsv = rgbtohsv(v@Cd);\n"
+            "v@Cd = hsvtorgb(set(hsv.x, fit(hsv.y, 0, 1, 0.55, 0.95),\n"
+            "                    fit(hsv.z, 0, 1, 0.60, 0.95)));")
+
         promo = sop.createNode("attribpromote", "attribpromote1")
-        promo.setInput(0, cor)
+        promo.setInput(0, nc)
         promo.parm("inname").set("Cd")
         promo.parm("inclass").set(1)
         promo.parm("outclass").set(0)

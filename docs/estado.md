@@ -699,3 +699,19 @@ Leaf_01-04, Bud_01-03 e Flower_01 ganham twosided (Karma) e Mtl2Sided
 (V-Ray); Fruit e Trunk seguem de um lado so. No V-Ray isso TROCA o
 modelo da folha de thin-walled+SSS para o 2Sided do video (translucency
 no slot do 2Sided, thin-walled fora).
+
+## Cor randomica do proxy: viva e legivel, nao so randomica (2026-09-12)
+
+O Matheus reclamou do esquema de cor do proxy. MEDIDO antes de mexer:
+(a) o pipeline funciona ponta a ponta -- o USD exportado tem
+displayColor no proxy (detail Cd vira constant); (b) o hash do Color
+SOP 'Random from Attribute' VARIA por nome, inclusive nomes parecidos
+(01_04 magenta, 01_05 azul); (c) a alternativa VEX
+rand(random_shash()) COLIDE em nomes parecidos -- descartada; (d) o
+defeito real: RGB arbitrario sai escuro/lamacento (Building_01 deu
+(0.19, 0.03, 0.05), quase preto -- parece proxy sem cor no GL).
+
+Conserto: wrangle nice_color depois do color1 -- rgbtohsv, mantem o
+matiz (e' ele que distingue os assets) e sobe saturacao para
+fit(0.55..0.95) e brilho para fit(0.60..0.95). Medido no chain real:
+01_04/05/06 e Building_01/02 todos vivos e distintos.
