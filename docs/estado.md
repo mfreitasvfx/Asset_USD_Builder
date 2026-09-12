@@ -565,3 +565,14 @@ look" -- implementado o esquema de presets do KB3D_Converter_2.0:
 
 O caminho da qualidade Jonas Noell agora e': ajustar UMA folha no
 render, SAVE PRESET, e o lote inteiro herda.
+
+## Zea com os 4 renderers + lista de checagem (2026-09-11, cont.)
+
+Build do Zea com karma+arnold+renderman+vray: ri:surface no USD (6
+connects, PxrMetallicWorkflow incluso), kma+vray+preview ok. Arnold NAO
+constroi no hython (medido: shaders do htoa registram mas o HDA
+arnold_materialbuilder nao carrega -- houdiniPath sem htoa); na GUI
+deve carregar -- arnold_available() agora testa o TIPO DE NO, nao o
+path. docs/checagem.md criado: a lista de checagem visual do Matheus
+("pode construir para os outros renderizadores, so nao vou checar
+agora. coloca na lista de checagem").

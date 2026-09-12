@@ -222,7 +222,11 @@ def build_karma(parent, name, maps, plant=False, disp_scale=0.01, w=None,
 
 
 def arnold_available():
-    return any("htoa" in x.lower() for x in hou.houdiniPath())
+    # o teste honesto e' o TIPO DE NO existir (medido: no hython o htoa
+    # registra os shaders mas o HDA arnold_materialbuilder nao carrega;
+    # na GUI carrega). O check antigo por houdiniPath mentia nos dois
+    # sentidos.
+    return "arnold_materialbuilder" in hou.vopNodeTypeCategory().nodeTypes()
 
 
 def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None,
