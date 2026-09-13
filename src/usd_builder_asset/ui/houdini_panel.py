@@ -88,6 +88,25 @@ class Panel(QtWidgets.QWidget):
         wrap.setLayout(linha)
         fF.addRow("Asset Folder", wrap)
 
+        # pasta de texturas OPCIONAL (pedido do Matheus: "CASO nao ache a
+        # textura eu aponte um local") -- mesma memoria de recentes, mas
+        # comeca VAZIA: opcional nao se auto-preenche
+        linhaT = QtWidgets.QHBoxLayout()
+        self.cbTex = QtWidgets.QComboBox()
+        self.cbTex.setEditable(True)
+        self.cbTex.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+        for p in self._recentes_carrega(self._ARQ_RECENTES_TEX):
+            self.cbTex.addItem(p)
+        self.cbTex.setCurrentText("")
+        btT = QtWidgets.QPushButton("...")
+        btT.setFixedWidth(30)
+        btT.clicked.connect(lambda: self._escolher(self.cbTex))
+        linhaT.addWidget(self.cbTex, 1)
+        linhaT.addWidget(btT)
+        wrapT = QtWidgets.QWidget()
+        wrapT.setLayout(linhaT)
+        fF.addRow("Textures (optional)", wrapT)
+
         # linha separadora + Output Folder logo abaixo (pedido do Matheus)
         sep = QtWidgets.QFrame()
         sep.setFrameShape(QtWidgets.QFrame.HLine)
@@ -282,32 +301,37 @@ class Panel(QtWidgets.QWidget):
     _ARQ_RECENTES = os.path.join(
         hou.homeHoudiniDirectory() if hasattr(hou, "homeHoudiniDirectory")
         else os.path.expanduser("~"), "usd_builder_asset_recent.json")
+    _ARQ_RECENTES_TEX = os.path.join(
+        os.path.dirname(_ARQ_RECENTES), "usd_builder_asset_recent_tex.json")
 
-    def _recentes_carrega(self):
+    def _recentes_carrega(self, arq=None):
         import json
         try:
-            with open(self._ARQ_RECENTES, "r", encoding="utf-8") as fh:
+            with open(arq or self._ARQ_RECENTES, "r",
+                      encoding="utf-8") as fh:
                 return [p for p in json.load(fh) if os.path.isdir(p)][:8]
         except Exception:
             return []
 
-    def _recentes_salva(self, pasta):
+    def _recentes_salva(self, pasta, combo=None, arq=None):
         import json
+        combo = combo if combo is not None else self.edFonte
+        arq = arq or self._ARQ_RECENTES
         pasta = pasta.replace("\\", "/")
-        lista = [pasta] + [p for p in self._recentes_carrega()
+        lista = [pasta] + [p for p in self._recentes_carrega(arq)
                            if p.lower() != pasta.lower()]
         try:
-            with open(self._ARQ_RECENTES, "w", encoding="utf-8") as fh:
+            with open(arq, "w", encoding="utf-8") as fh:
                 json.dump(lista[:8], fh, indent=1)
         except Exception:
             pass
-        self.edFonte.blockSignals(True)
-        atual = self.edFonte.currentText()
-        self.edFonte.clear()
+        combo.blockSignals(True)
+        atual = combo.currentText()
+        combo.clear()
         for p in lista[:8]:
-            self.edFonte.addItem(p)
-        self.edFonte.setCurrentText(atual)
-        self.edFonte.blockSignals(False)
+            combo.addItem(p)
+        combo.setCurrentText(atual)
+        combo.blockSignals(False)
 
     def _texto(self, campo):
         return (campo.currentText() if isinstance(campo, QtWidgets.QComboBox)
@@ -344,9 +368,13 @@ class Panel(QtWidgets.QWidget):
         if not os.path.isdir(pasta):
             self._diz("invalid folder: %r" % pasta)
             return
+        tex = self._texto(self.cbTex)
+        if tex and not os.path.isdir(tex):
+            self._diz("invalid textures folder: %r" % tex)
+            return
         self._diz("-" * 10 + " START SCANNING " + "-" * 10)
         try:
-            self._asset = library.scan(pasta)
+            self._asset = library.scan(pasta, tex_dir=tex or None)
             escolha = self.cbPerfil.currentData()
             if escolha and escolha != "auto":
                 # o usuario marcou: o perfil escolhido manda
@@ -359,6 +387,8 @@ class Panel(QtWidgets.QWidget):
             self._diz(traceback.format_exc())
             return
         self._recentes_salva(pasta)
+        if tex:
+            self._recentes_salva(tex, self.cbTex, self._ARQ_RECENTES_TEX)
         # branches: o perfil da' o ponto de partida, o usuario sobrepoe
         # desmarcando antes do BUILD (ferramenta adaptativa)
         self.ckProxy.setChecked(bool(getattr(self._profile, "proxy", False)))

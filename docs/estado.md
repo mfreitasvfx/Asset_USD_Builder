@@ -789,3 +789,24 @@ O botao do MT se pendura sozinho na shelf USD_Builder no primeiro boot
 com UI (uiready.py, libs cobrem py3.10-3.13). A Asset Gallery e' o
 asset_gallery.db DENTRO da pasta de saida -- viaja com os assets,
 qualquer versao abre pelo pane Layout Asset Gallery -> Data Source.
+
+## Campo Textures na janela + parser BigMediumSmall (2026-09-13, cont.)
+
+Pedido do Matheus vendo o CP_Vehicles (BigMediumSmall cyberpunk): a
+geometria mora em FBX+OBJ/... e as texturas em Textures/... (fundo
+demais pra subida automatica de 3 pais) -- o scan dava 0 partes.
+
+1. Campo "Textures (optional)" ABAIXO do Asset Folder, mesmo esquema de
+   memoria (combo editavel, recentes proprios em
+   usd_builder_asset_recent_tex.json, max 8), comeca VAZIO (opcional
+   nao se auto-preenche). library.scan(root, tex_dir=) COMPLEMENTA as
+   partes com a pasta indicada (profundidade 3; papel ja achado so' cai
+   por peso maior). Log avisa quantas partes novas entraram.
+2. Parser: token final de FORMATO ('CPTaxiRoof_normal_png.png') virava
+   parte falsa <Parte>_png com a normal orfa. _FMT_RE derruba
+   png/jpg/tga/tif/exr/bmp no fim do nome de parte.
+
+MEDIDO no pacote real: 0 partes sem o campo -> 103 partes com ele,
+todas com normal no lugar (112 com fantasmas antes do parser).
+Biblioteca segue "desconhecida" (perfil generico) -- perfil proprio
+BigMediumSmall fica para depois do primeiro build visual.

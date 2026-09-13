@@ -45,6 +45,10 @@ DESCONHECIDA = "desconhecida"
 
 _RES_RE = re.compile(r"_\d+k(?=_|$)", re.I)              # _8K, _4K
 _LODTOK_RE = re.compile(r"_(?:lod\d+|high)(?=_|$)", re.I)
+# token final que e' so' FORMATO de imagem: 'CPTaxiRoof_normal_png.png'
+# (BigMediumSmall) virava parte falsa 'CPTaxiRoof_png' e a normal ficava
+# orfa do material -- medido no pacote cyberpunk
+_FMT_RE = re.compile(r"_(?:png|jpe?g|tga|tiff?|exr|bmp)$", re.I)
 _GEO_EXT = (".fbx", ".abc", ".obj", ".bgeo", ".usd", ".usdc", ".usda")
 _IMG_EXT = (".jpg", ".jpeg", ".png", ".exr", ".tif", ".tiff", ".tga")
 
@@ -174,6 +178,7 @@ def _part_name(filename):
         if i >= 0:
             base = base[:i] + base[i + len(suf) + 1:]
     base = _LODTOK_RE.sub("", _RES_RE.sub("", base))
+    base = _FMT_RE.sub("", base.strip("_"))
     return base.strip("_") or "default"
 
 
@@ -233,8 +238,36 @@ def _sobe_por_texturas(a, niveis=3):
             return
 
 
-def scan(root):
-    """Le a pasta e devolve um Asset."""
+def _texturas_indicadas(a, tex_dir):
+    """Pasta de texturas apontada pelo usuario na janela.
+
+    Fallback para pacotes que guardam textura longe da geometria
+    (BigMediumSmall: FBX+OBJ/... e as texturas noutra arvore). COMPLEMENTA
+    o que o scan da pasta achou: papel ja preenchido so' e' trocado se o
+    arquivo novo pesa mais (regra normal do _coleta_imagem)."""
+    tex_dir = str(tex_dir).replace("\\", "/").rstrip("/")
+    if not os.path.isdir(tex_dir):
+        a.avisos.append("pasta de texturas nao existe: %s" % tex_dir)
+        return
+    antes = set(a.parts)
+    for nome, cheio in _arquivos(tex_dir, profundidade=3):
+        if nome.lower().endswith(_IMG_EXT):
+            _coleta_imagem(a, nome, cheio, avisar=False)
+    novas = len(set(a.parts) - antes)
+    if novas:
+        a.avisos.append("pasta de texturas indicada: %d parte(s) nova(s) "
+                        "de %s" % (novas, tex_dir))
+    else:
+        a.avisos.append("pasta de texturas indicada nao acrescentou parte "
+                        "nenhuma: %s" % tex_dir)
+
+
+def scan(root, tex_dir=None):
+    """Le a pasta e devolve um Asset.
+
+    tex_dir: pasta EXTRA de texturas (campo Textures da janela) -- usada
+    quando o pacote nao guarda as texturas junto da geometria.
+    """
     a = Asset(root)
     if not os.path.isdir(a.root):
         a.avisos.append("pasta nao existe")
@@ -281,6 +314,8 @@ def scan(root):
 
     if a.geometry and not a.parts and not a.built:
         _sobe_por_texturas(a)
+    if tex_dir:
+        _texturas_indicadas(a, tex_dir)
 
     if not a.geometry:
         a.avisos.append("nenhuma geometria na pasta")
