@@ -746,3 +746,26 @@ segunda leitura de textura); _Back real entra por diffuseBackColor
 (BackUse=0). Medido no Zea com o box: 8 partes de folha double-sided,
 Fruit/Trunk de um lado so. O caminho de folha ja ligava
 diffuseDoubleSided; agora o box tambem age, com o par especular.
+
+## Multi-versao: Arnold no 22, RenderMan no 21, V-Ray no 20.5 (2026-09-13)
+
+Ideia do Matheus, MEDIDA antes de opinar. Build completo do Zea no
+20.5.410 + vfh 7.00.10: 6 partes, zero avisos, e o leaf do V-Ray
+conectou translucency_color (o slot que o 7.10/H21 removeu) -- o
+build_vray adaptativo fez o certo sozinho. Fallbacks agiram: sem Labs
+no 20.5, delete_small_parts e' pulado; lowres_geo::1.1.1 existe nos
+prefs do 20.5 (origem dele).
+
+Mapa medido das versoes:
+- H22.0.368: Arnold (+Karma). vfh e RfH nao existem p/ 22.
+- H21.0.596: RenderMan + Karma + V-Ray 7.10 (sem translucency_color).
+- H20.5.410: V-Ray 7.00.10 COM translucency_color (+Karma). RfH exige
+  20.5.684 (instalados: .410/.584) -- RenderMan nao roda no 20.5.
+  ATENCAO: vfh 20.5 so' suporta ate' 20.5.445 -- usar o .410, nao .584.
+
+Pegadinhas do fluxo: o json do vfh 20.5 esta' com INSTALL_ROOT
+placeholder (nunca registrado; rodei com copia corrigida via
+HOUDINI_PACKAGE_DIR); shelf precisa ser copiada p/ houdini20.5 e 22;
+cada versao escreve SEU USD (nenhuma versao tem os 4 renderers --
+export final continua 21 + passada Arnold no 22); preset .cpio de
+V-Ray salvo no 20.5 pode nao bater 1:1 nos nos do 7.10.
