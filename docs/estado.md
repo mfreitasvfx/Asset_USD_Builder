@@ -734,3 +734,15 @@ do fbx". Pasta-e-asset (Maxtree/Megascans): subnet = nome do ARQUIVO
 do geo_path subiu para antes do subnet -- de quebra, asset sem
 geometria nao deixa mais subnet vazio em /stage. Prim/USD seguem com o
 nome do asset (so o subnet muda). Rebuild do mesmo fbx: _High_1.
+
+## Two-Sided no RenderMan (2026-09-12, cont.)
+
+Pedido do Matheus: ligar o double-sided do RenderMan como nos outros
+tres renderers. O conversor KB3D nao tem nada de RenderMan (conferido
+nos scripts dele); o jeito oficial e o do proprio PxrSurface (Args do
+RMan 27.3): diffuseDoubleSided + specularDoubleSided; verso espelhado
+(box Two-Sided sem _Back real) usa diffuseBackUseDiffuseColor=1 (sem
+segunda leitura de textura); _Back real entra por diffuseBackColor
+(BackUse=0). Medido no Zea com o box: 8 partes de folha double-sided,
+Fruit/Trunk de um lado so. O caminho de folha ja ligava
+diffuseDoubleSided; agora o box tambem age, com o par especular.

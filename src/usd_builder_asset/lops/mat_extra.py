@@ -185,6 +185,22 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
             w.connect(surf, "diffuseTransmitColor",
                       cc("translucency", img), "resultRGB")
 
+    if "back_basecolor" in maps:
+        # frente/verso do box Two-Sided, jeito oficial do PxrSurface
+        # (Args do RMan 27.3: diffuseDoubleSided/specularDoubleSided +
+        # diffuseBackColor). Verso ESPELHADO (mesmo arquivo da frente)
+        # usa a propria cor -- sem segunda leitura de textura; verso
+        # REAL (_Back) entra em diffuseBackColor.
+        w.set(surf, "diffuseDoubleSided", 1)
+        w.set(surf, "specularDoubleSided", 1)
+        if maps["back_basecolor"] == maps.get("basecolor"):
+            w.set(surf, "diffuseBackUseDiffuseColor", 1)
+        else:
+            w.set(surf, "diffuseBackUseDiffuseColor", 0)
+            imgb = image("back_basecolor", maps["back_basecolor"], True)
+            w.connect(surf, "diffuseBackColor",
+                      cc("back_basecolor", imgb), "resultRGB")
+
     sub.layoutChildren()
     return sub
 

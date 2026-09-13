@@ -58,6 +58,9 @@ Zea direto: Leaf/Bud/Flower ganham o two-sided, Fruit/Trunk não.
       renderiza (suspeita: sim, é implementação embutida).
 - [ ] Arnold: `arnold::two_sided` (front/back) — wiring pronto, sem
       render ainda.
+- [ ] RenderMan (novo 2026-09-12): PxrSurface `diffuseDoubleSided` +
+      `specularDoubleSided`; verso espelhado usa a cor da frente,
+      `_Back` real entra em `diffuseBackColor` — conferir no viewport.
 
 ## Arnold via Houdini 22 (`Testes/zea_h22`)
 
