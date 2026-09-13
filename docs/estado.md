@@ -769,3 +769,23 @@ HOUDINI_PACKAGE_DIR); shelf precisa ser copiada p/ houdini20.5 e 22;
 cada versao escreve SEU USD (nenhuma versao tem os 4 renderers --
 export final continua 21 + passada Arnold no 22); preset .cpio de
 V-Ray salvo no 20.5 pode nao bater 1:1 nos nos do 7.10.
+
+## Instalacao multi-versao feita (2026-09-13, cont.)
+
+O Matheus aprovou o fluxo Arnold@22 / RenderMan@21 / V-Ray@20.5 e pediu
+a instalacao do que faltava + o MT_AssetLibrary (projeto irmao em
+C:/dev/MT_AssetLibrary, package proprio) nas outras versoes.
+
+Instalado e VERIFICADO por hython (so com os prefs, sem env na mao):
+- houdini20.5: vray_for_houdini_20.5.json (o json da Chaos estava com
+  INSTALL_ROOT placeholder -- nunca registrado), zz_MT_AssetLibrary.json,
+  shelf+svg. Verificado: VRayNodeBRDFVRayMtl ok, translucency_color
+  CONECTAVEL, lowres_geo ok (copia sipi- ja existia), MTAL env ok.
+  Labs ausente no 20.5: delete_small_parts e' pulado (fallback).
+- houdini22.0: shelf+svg, zz_MT_AssetLibrary.json, otls/
+  sop-lowres_geo-1.1.1.hda (nao existia). Verificado: Arnold 7.5.3
+  registra, labs ok, lowres_geo ok, MTAL env ok. vfh nao existe p/ 22.
+O botao do MT se pendura sozinho na shelf USD_Builder no primeiro boot
+com UI (uiready.py, libs cobrem py3.10-3.13). A Asset Gallery e' o
+asset_gallery.db DENTRO da pasta de saida -- viaja com os assets,
+qualquer versao abre pelo pane Layout Asset Gallery -> Data Source.
