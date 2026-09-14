@@ -82,8 +82,12 @@ class Panel(QtWidgets.QWidget):
         bt = QtWidgets.QPushButton("...")
         bt.setFixedWidth(30)
         bt.clicked.connect(lambda: self._escolher(self.edFonte))
+        btO1 = QtWidgets.QPushButton("OPEN")
+        btO1.setFixedWidth(48)
+        btO1.clicked.connect(lambda: self._abrir(self.edFonte))
         linha.addWidget(self.edFonte, 1)
         linha.addWidget(bt)
+        linha.addWidget(btO1)
         wrap = QtWidgets.QWidget()
         wrap.setLayout(linha)
         fF.addRow("Asset Folder", wrap)
@@ -101,11 +105,22 @@ class Panel(QtWidgets.QWidget):
         btT = QtWidgets.QPushButton("...")
         btT.setFixedWidth(30)
         btT.clicked.connect(lambda: self._escolher(self.cbTex))
+        btO2 = QtWidgets.QPushButton("OPEN")
+        btO2.setFixedWidth(48)
+        btO2.clicked.connect(lambda: self._abrir(self.cbTex))
         linhaT.addWidget(self.cbTex, 1)
         linhaT.addWidget(btT)
+        linhaT.addWidget(btO2)
         wrapT = QtWidgets.QWidget()
         wrapT.setLayout(linhaT)
         fF.addRow("Textures (optional)", wrapT)
+
+        # combos com caminho comprido nao podem DITAR a largura minima da
+        # janela ("nao consigo diminuir a janela" -- Matheus)
+        for cb in (self.edFonte, self.cbTex):
+            cb.setSizeAdjustPolicy(
+                QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            cb.setMinimumContentsLength(24)
 
         # linha separadora + Output Folder logo abaixo (pedido do Matheus)
         sep = QtWidgets.QFrame()
@@ -119,8 +134,12 @@ class Panel(QtWidgets.QWidget):
         bt2 = QtWidgets.QPushButton("...")
         bt2.setFixedWidth(30)
         bt2.clicked.connect(lambda: self._escolher(self.edSaida))
+        btO3 = QtWidgets.QPushButton("OPEN")
+        btO3.setFixedWidth(48)
+        btO3.clicked.connect(lambda: self._abrir(self.edSaida))
         linha2.addWidget(self.edSaida)
         linha2.addWidget(bt2)
+        linha2.addWidget(btO3)
         wrap2 = QtWidgets.QWidget()
         wrap2.setLayout(linha2)
         fF.addRow("Output Folder", wrap2)
@@ -337,6 +356,14 @@ class Panel(QtWidgets.QWidget):
         return (campo.currentText() if isinstance(campo, QtWidgets.QComboBox)
                 else campo.text()).strip()
 
+    def _abrir(self, campo):
+        """O botao OPEN do Asset_USD_Builder: abre a pasta no Explorer."""
+        p = self._texto(campo)
+        if os.path.isdir(p):
+            os.startfile(os.path.normpath(p))
+        else:
+            self._diz("folder does not exist: %r" % p)
+
     def _escolher(self, campo):
         d = QtWidgets.QFileDialog.getExistingDirectory(
             self, "Folder", self._texto(campo) or os.path.expanduser("~"))
@@ -494,10 +521,19 @@ class Panel(QtWidgets.QWidget):
                 except Exception:
                     self._diz(traceback.format_exc())
                     continue
-                self._diz("PROCESSING FILE: %s (%d assets)"
-                          % (nome_arq, len(tops)))
+                # DEPOIS do list (a importacao extrai texturas embutidas
+                # p/ <arquivo>.fbm): arquivo com texturas proprias usa as
+                # SUAS partes; sem elas, o atlas do set (Post Apocalypse)
+                partes_f = library.parts_for_file(self._asset, f) or partes
+                if partes_f is not partes:
+                    self._diz("PROCESSING FILE: %s (%d assets, %d own "
+                              "texture parts)" % (nome_arq, len(tops),
+                                                  len(partes_f)))
+                else:
+                    self._diz("PROCESSING FILE: %s (%d assets)"
+                              % (nome_arq, len(tops)))
                 for top in tops:
-                    alvos.append((f, top, partes))
+                    alvos.append((f, top, partes_f))
         elif self._modo == "objetos":
             perfil = profiles.custom(base_key, **over)
             sel = [i.text() for i in self.lista.selectedItems()]

@@ -67,3 +67,12 @@ Zea direto: Leaf/Bud/Flower ganham o two-sided, Fruit/Trunk não.
 - [x] Build headless no 22.0.368: 12 materiais, outputs:arnold:surface
       + kma + preview no USD.
 - [ ] Conferir no viewport do H22 (Arnold render delegate).
+
+## BigMediumSmall — CP_Vehicles (2026-09-13)
+
+- [ ] Rebuild pela janela (SCAN + BUILD dos 10 fbx): cada veículo deve
+      logar "own texture parts" e sair com 6 materiais bindados.
+- [ ] Preview no GL: textura visível SEM Karma marcado (usdpreviewsurface
+      explícito, `outputs:surface` conferido no USD).
+- [ ] Janela: encolher à vontade (combos não travam mais a largura);
+      botões OPEN nos três campos abrem o Explorer.

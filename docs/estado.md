@@ -810,3 +810,29 @@ MEDIDO no pacote real: 0 partes sem o campo -> 103 partes com ele,
 todas com normal no lugar (112 com fantasmas antes do parser).
 Biblioteca segue "desconhecida" (perfil generico) -- perfil proprio
 BigMediumSmall fica para depois do primeiro build visual.
+
+## CP_Vehicles por inteiro + preview + UI (2026-09-13, cont.)
+
+Quatro pedidos do Matheus no teste do BigMediumSmall:
+
+1. "Nao monta todos os shaders" -- MEDIDO: as texturas dos veiculos sao
+   EMBUTIDAS no FBX; o Houdini extrai p/ <arquivo>.fbm na primeira
+   importacao (por isso o scan de ontem dava 0). Alem disso os materiais
+   tem ESPACO no nome ('vh_cp_glass car') e as texturas rabo _Bake1_PBR.
+   Consertos: _BAKE_RE tira o rabo, espaco vira '_' no nome da parte
+   (casa com o prim USD do subset), e library.parts_for_file(asset, fbx)
+   devolve as partes do .fbm do arquivo -- o modo multifbx da janela usa
+   as partes DO ARQUIVO quando existem (o list_assets_in_file roda antes
+   e ja extrai o .fbm na primeira vez); sem .fbm cai no atlas (PA).
+   PROVA: cp_vh_car_A com 6/6 bindados (glass/trim inclusive), 0 missing.
+2. usdpreviewsurface EXPLICITO em todo material (build_preview, copia do
+   MatLib do HDA: UsdUVTexture cor sRGB + opacity raw -> preview no
+   collect). Sem ele so' build com Karma/MtlX aparecia no GL. Terminais
+   conferidos no USD: outputs:kma:surface + outputs:vray:surface +
+   outputs:surface juntos. O atalho "karma sozinho sem collect" saiu.
+3. Janela nao encolhia: combos com caminho comprido ditavam a largura
+   minima -- AdjustToMinimumContentsLengthWithIcon + comprimento 24.
+4. Botoes OPEN (esquema do Asset_USD_Builder) nos tres campos de pasta.
+
+AVISO ambiente: o vray_for_houdini_21.0.json APARECEU movido p/
+packages/bkp hoje 17:47 (nao foi a ferramenta); restaurado e conferido.

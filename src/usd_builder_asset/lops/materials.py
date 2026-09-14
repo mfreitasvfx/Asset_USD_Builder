@@ -344,6 +344,42 @@ def build_arnold(parent, name, maps, plant=False, disp_scale=0.01, w=None,
     return ar
 
 
+def build_preview(parent, name, maps, w):
+    """UsdPreviewSurface explicito -- o esquema do Asset_USD_Builder.
+
+    E' o shader que o GL/hydra le SEM renderer nenhum: sem ele, so' build
+    com Karma/MtlX mostrava textura na cena (pedido do Matheus). Copia do
+    MatLib do HDA: UsdUVTexture de cor (sRGB) + de opacity -> preview.
+    """
+    from .mat_extra import ctx_subnet
+    sub = ctx_subnet(parent, "preview_" + name, "")
+    out = sub.node("suboutput1")
+    ps = sub.createNode("usdpreviewsurface", "usdpreviewsurface")
+    out.setInput(0, ps, 0)
+    w.set(out, "name1", "surface")
+
+    cat = hou.vopNodeTypeCategory()
+    tipo_tex = ("usduvtexture::2.0"
+                if cat.nodeType("usduvtexture::2.0") is not None
+                else "usduvtexture")
+
+    def tex(rotulo, path, srgb):
+        t = sub.createNode(tipo_tex, rotulo)
+        w.set(t, "file", path)
+        # st desconectado le a primvar 'st' sozinho (igual ao HDA)
+        w.set(t, "sourceColorSpace", "sRGB" if srgb else "raw")
+        return t
+
+    if "basecolor" in maps:
+        w.connect(ps, "diffuseColor",
+                  tex("UsdPrevColor", maps["basecolor"], True), "rgb")
+    if "opacity" in maps:
+        w.connect(ps, "opacity",
+                  tex("UsdPrevOpacity", maps["opacity"], False), "r")
+    sub.layoutChildren()
+    return sub
+
+
 def build_material(parent, name, maps, renderers=("karma", "arnold"),
                    plant=False, disp_scale=0.01, settings=None):
     """Cria o material `name`. Devolve (no_final, avisos).
@@ -400,18 +436,19 @@ def build_material(parent, name, maps, renderers=("karma", "arnold"),
         else:
             w.warn("V-Ray nao esta nesta sessao; '%s' sai sem" % name)
 
+    # preview SEMPRE: o GL le este shader com qualquer combinacao de
+    # renderers marcada (sem ele, so' o caminho MtlX aparecia na cena)
+    pv = build_preview(parent, name, maps, w)
+
     # folha verde, tronco marrom (pedido do Matheus) -- nos builders e no
     # collect, para se achar de longe na materiallibrary
     cor = cor_da_parte(name)
     if cor is not None:
-        for n in (ar, km, rman, vr):
+        for n in (ar, km, rman, vr, pv):
             if n is not None:
                 n.setColor(cor)
 
-    extras = [n for n in (ar, rman, vr) if n is not None]
-    if not extras and km is not None:
-        km.setName(name, unique_name=True)
-        return km, w.avisos
+    extras = [n for n in (ar, rman, vr, pv) if n is not None]
 
     col = parent.createNode("collect", name)
     if cor is not None:

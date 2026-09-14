@@ -49,6 +49,10 @@ _LODTOK_RE = re.compile(r"_(?:lod\d+|high)(?=_|$)", re.I)
 # (BigMediumSmall) virava parte falsa 'CPTaxiRoof_png' e a normal ficava
 # orfa do material -- medido no pacote cyberpunk
 _FMT_RE = re.compile(r"_(?:png|jpe?g|tga|tiff?|exr|bmp)$", re.I)
+# rabo de bake do BigMediumSmall: 'vh_cp_glass car_Bake1_PBR_Diffuse.jpg'
+# -- o material do FBX se chama 'vh_cp_glass car'; sem tirar _Bake1_PBR a
+# parte nao casa com o subset
+_BAKE_RE = re.compile(r"_bake\d+(?:_pbr)?$", re.I)
 _GEO_EXT = (".fbx", ".abc", ".obj", ".bgeo", ".usd", ".usdc", ".usda")
 _IMG_EXT = (".jpg", ".jpeg", ".png", ".exr", ".tif", ".tiff", ".tga")
 
@@ -179,6 +183,10 @@ def _part_name(filename):
             base = base[:i] + base[i + len(suf) + 1:]
     base = _LODTOK_RE.sub("", _RES_RE.sub("", base))
     base = _FMT_RE.sub("", base.strip("_"))
+    base = _BAKE_RE.sub("", base)
+    # espaco no nome de material (BigMediumSmall) vira '_' no prim USD do
+    # subset; a parte precisa casar com o subset, entao sanitiza igual
+    base = base.replace(" ", "_")
     return base.strip("_") or "default"
 
 
@@ -260,6 +268,25 @@ def _texturas_indicadas(a, tex_dir):
     else:
         a.avisos.append("pasta de texturas indicada nao acrescentou parte "
                         "nenhuma: %s" % tex_dir)
+
+
+def parts_for_file(asset, geo_path):
+    """Partes de textura DESTE arquivo de um set multi-FBX, ou None.
+
+    BigMediumSmall: cada FBX traz as texturas EMBUTIDAS, que o Houdini
+    extrai para a pasta irma <arquivo>.fbm na primeira importacao. Quando
+    ela existe, o veiculo tem materiais proprios e o atlas do set esta'
+    ERRADO para ele. Sem .fbm, devolve None e o chamador usa o atlas
+    (Post Apocalypse).
+    """
+    fbm = os.path.splitext(str(geo_path).replace("\\", "/"))[0] + ".fbm"
+    if not os.path.isdir(fbm):
+        return None
+    b = Asset(fbm)
+    for nome, cheio in _arquivos(fbm, profundidade=1):
+        if nome.lower().endswith(_IMG_EXT):
+            _coleta_imagem(b, nome, cheio, avisar=False)
+    return b.parts or None
 
 
 def scan(root, tex_dir=None):
