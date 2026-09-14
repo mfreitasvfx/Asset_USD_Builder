@@ -41,7 +41,6 @@ from . import naming
 MAXTREE = "maxtree"
 MEGASCANS = "megascans"
 KITBASH = "kitbash"
-BIGMEDIUMSMALL = "bigmediumsmall"
 DESCONHECIDA = "desconhecida"
 
 _RES_RE = re.compile(r"_\d+k(?=_|$)", re.I)              # _8K, _4K
@@ -54,8 +53,6 @@ _FMT_RE = re.compile(r"_(?:png|jpe?g|tga|tiff?|exr|bmp)$", re.I)
 # -- o material do FBX se chama 'vh_cp_glass car'; sem tirar _Bake1_PBR a
 # parte nao casa com o subset
 _BAKE_RE = re.compile(r"_bake\d+(?:_pbr)?$", re.I)
-# a mesma marca, mas no MEIO do nome, serve de assinatura da biblioteca
-_BAKE_SIG_RE = re.compile(r"_bake\d+_pbr_", re.I)
 _GEO_EXT = (".fbx", ".abc", ".obj", ".bgeo", ".usd", ".usdc", ".usda")
 _IMG_EXT = (".jpg", ".jpeg", ".png", ".exr", ".tif", ".tiff", ".tga")
 
@@ -340,7 +337,7 @@ def scan(root, tex_dir=None):
     a.geometry = geo_por_lod
     a.geo_files.sort(key=natural_key)
     a.plant = naming.looks_like_plant([n for n, _c in arquivos])
-    a.library = classify([n for n, _c in arquivos], a.root)
+    a.library = classify([n for n, _c in arquivos])
 
     if a.geometry and not a.parts and not a.built:
         _sobe_por_texturas(a)
@@ -410,7 +407,7 @@ def atlas_variants(asset):
     return out or None
 
 
-def classify(arquivos, root=""):
+def classify(arquivos):
     """De que biblioteca veio. Cada assinatura foi conferida contra uma pasta
     real; nao ha regra inventada."""
     nomes = [f.lower() for f in arquivos]
@@ -418,14 +415,6 @@ def classify(arquivos, root=""):
     # KitBash: prefixo KB3D_ nos arquivos e nas texturas.
     if any(n.startswith("kb3d_") for n in nomes):
         return KITBASH
-
-    # BigMediumSmall: o nome do pacote no caminho (vale ja' no primeiro
-    # scan, antes de existir o .fbm) ou o rabo de bake das texturas
-    # embutidas. Importa porque a ESCALA deles e' outra: medido no
-    # CP_Vehicles, o carro tem 5.36 unidades = 5,36 m, ja' em metros.
-    if "bigmediumsmall" in str(root).lower().replace(" ", "") \
-            or any(_BAKE_SIG_RE.search(n) for n in nomes):
-        return BIGMEDIUMSMALL
 
     # Megascans: token de resolucao (_8K_, _4K_) mais LOD na geometria ou um
     # <id>_Preview.png. Nao exigimos .fbx -- metade da biblioteca vem em .abc,

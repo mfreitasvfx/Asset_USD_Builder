@@ -614,32 +614,6 @@ def list_assets_in_file(geo_path):
         obj.destroy()
 
 
-def medir_usd(usd_path):
-    """Tamanho do asset exportado, em METROS. None se nao der para ler.
-
-    Sai do extent que o proprio USD ja' gravou (nao cozinha nada), entao
-    custa quase zero e serve de conferencia de escala depois do export:
-    um carro que sai com 0.05 m denuncia um convert_units errado.
-    """
-    try:
-        from pxr import Usd, UsdGeom
-        st = Usd.Stage.Open(str(usd_path))
-        if st is None:
-            return None
-        mpu = UsdGeom.GetStageMetersPerUnit(st) or 1.0
-        prim = st.GetDefaultPrim() or st.GetPseudoRoot()
-        cache = UsdGeom.BBoxCache(
-            Usd.TimeCode.Default(),
-            [UsdGeom.Tokens.default_, UsdGeom.Tokens.render])
-        faixa = cache.ComputeWorldBound(prim).ComputeAlignedRange()
-        if faixa.IsEmpty():
-            return None
-        t = faixa.GetSize()
-        return (t[0] * mpu, t[1] * mpu, t[2] * mpu)
-    except Exception:
-        return None
-
-
 def cache_bgeo(geo_path, cache_dir):
     """Converte um arquivo de geometria para .bgeo.sc uma unica vez.
 

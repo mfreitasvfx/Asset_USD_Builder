@@ -100,22 +100,13 @@ corrente (medido: precisa 92px, ficou 100).
 - [ ] Botões de ação (BUILD/EXPORT/UPDATE/SAVE PRESET) e as setas dos
       spinboxes agora escalam com a UI: ver se a altura ficou boa.
 
-## Escala — CP_Vehicles estava 100x menor (2026-09-13)
+## Escala (2026-09-14)
 
-Medido: o carro do BigMediumSmall tem 5,358 unidades = **5,36 m** (já em
-metros), mas levava o 0.01 dos outros pacotes e virava um carro de 5,4 cm.
-Maxtree (48 cm) e KitBash (232 m) continuam em centímetros, então o 0.01
-está certo lá.
+O Unit Scale (aba SETTINGS) agora nasce em 0.0100 e é ele que vai para o
+convert_units do builder — sem perfil por baixo.
 
-- [ ] **Reexportar o CP_Vehicles**: os USDs escritos até hoje estão 100x
-      menores e não dá para consertar por transform — a escala fica
-      assada nos pontos. SCAN + BUILD + EXPORT de novo.
-- [ ] No SCAN, conferir no log `unit scale 1 (BigMediumSmall)` e o campo
-      Unit Scale (aba SETTINGS) mostrando 1.0000 — antes ficava 0 e o
-      0.01 entrava escondido.
-- [ ] No EXPORT, conferir a linha `size: 5.358 x 1.663 x 2.270 m` e o
-      carro do tamanho de um carro ao lado do Zea no viewport.
-- [ ] Maxtree: garantir que continua `unit scale 0.01` e a planta com a
-      altura de sempre (nada deveria ter mudado).
-- [ ] Se algum pacote novo sair com tamanho estranho, o log avisa
-      ("escala suspeita") — me mande o número em vez de corrigir à mão.
+- [ ] CP_Vehicles: build com Unit Scale **1** (medido: o carro tem 5,36 m,
+      já vem em metros) e conferir o tamanho no viewport. Os USDs que
+      saíram com 0.01 estão 100x menores e precisam ser refeitos.
+- [ ] Maxtree/KitBash: continuam em 0.0100 (medido: soja 48 cm, set do
+      KitBash 232 m) — nada deveria ter mudado.
