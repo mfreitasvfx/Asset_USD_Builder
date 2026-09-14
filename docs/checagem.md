@@ -76,3 +76,26 @@ Zea direto: Leaf/Bud/Flower ganham o two-sided, Fruit/Trunk não.
       explícito, `outputs:surface` conferido no USD).
 - [ ] Janela: encolher à vontade (combos não travam mais a largura);
       botões OPEN nos três campos abrem o Explorer.
+
+## Janela na sua escala de UI 1.5 (2026-09-13)
+
+O `ui.pref` está em `general.ui.scale := 1.5` e o `base.qss` do Houdini
+põe 22px de padding de cada lado em todo botão — por isso o OPEN saía
+vazio dentro dos 48px fixos. Agora quem manda é o texto na fonte
+corrente (medido: precisa 92px, ficou 100).
+
+- [ ] **OPEN legível** nos três campos (Asset / Textures / Output) e o
+      botão de pasta com o ícone nativo do Houdini no lugar do "...".
+      Se aparecer "..." em vez do ícone, o `canCreateIcon` recusou —
+      me avise.
+- [ ] **Janela encolhe**: mínimo caiu de 852x811 para ~151x206 (cada aba
+      ganhou rolagem). Puxe a borda até o limite e veja se incomoda a
+      barra de rolagem aparecer.
+- [ ] **Triângulo de recentes no Output Folder** (novo) e, nos três
+      campos, as pastas do próprio Houdini (`dir.history`) junto com as
+      nossas. O Output NÃO se auto-preenche com pasta do histórico.
+- [ ] Rótulos encurtados na aba SETTINGS (Shared textures / Asset
+      Gallery on export / Convert .tex (RenderMan) / Two-Sided leaves) —
+      a explicação foi para o tooltip; confira se ficou claro.
+- [ ] Botões de ação (BUILD/EXPORT/UPDATE/SAVE PRESET) e as setas dos
+      spinboxes agora escalam com a UI: ver se a altura ficou boa.

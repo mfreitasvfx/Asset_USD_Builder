@@ -36,6 +36,61 @@ def _reload_core():
         del sys.modules[m]
 
 
+def _S(n):
+    """px que acompanham o Global UI Size do Houdini (o Matheus usa 1.5)."""
+    try:
+        return hou.ui.scaledSize(n)
+    except AttributeError:           # hython/headless nao tem hou.ui
+        return n
+
+
+def _bt(texto, dica, cb):
+    """Botao curto que NAO corta o texto.
+
+    O base.qss do Houdini poe padding 15px de cada lado em TODO QPushButton,
+    e esses 15 sao multiplicados pelo Global UI Size: na escala 1.5 do
+    Matheus sobravam 4px dos 48px fixos de antes e o Qt CLIPAVA a palavra --
+    o botao OPEN aparecia vazio. Quem dimensiona agora e' o texto na fonte
+    corrente, entao serve em qualquer escala.
+    """
+    b = QtWidgets.QPushButton(texto)
+    b.setToolTip(dica)
+    fm = b.fontMetrics()
+    larg = (fm.horizontalAdvance(texto) if hasattr(fm, "horizontalAdvance")
+            else fm.width(texto))
+    b.setMinimumWidth(max(b.sizeHint().width(), larg + _S(36)))
+    b.clicked.connect(cb)
+    return b
+
+
+def _bt_icone(nome, dica, cb, texto_fallback):
+    """O botao de escolher pasta com o icone do proprio Houdini.
+
+    Mesma receita do FileChooserButton da SideFX (QToolButton + icone em
+    hou.ui.scaledSize(16)); sem GUI (hython) cai no botao de texto.
+    """
+    ic = None
+    try:
+        if not hou.qt.canCreateIcon(nome):
+            raise ValueError(nome)
+        fabrica = getattr(hou.qt, "createIcon", None) or hou.qt.Icon
+        s = _S(16)
+        ic = fabrica(nome, s, s)
+        if ic is None or ic.isNull():
+            raise ValueError(nome)
+    except Exception:
+        ic = None
+    if ic is None:                   # sem GUI, ou icone que nao existe
+        return _bt(texto_fallback, dica, cb)
+    b = QtWidgets.QToolButton()
+    b.setIcon(ic)
+    b.setIconSize(QtCore.QSize(s, s))
+    b.setAutoRaise(True)
+    b.setToolTip(dica)
+    b.clicked.connect(cb)
+    return b
+
+
 class Panel(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
@@ -47,7 +102,16 @@ class Panel(QtWidgets.QWidget):
         super(Panel, self).__init__(parent)
         self.setWindowFlag(QtCore.Qt.Window, True)
         self.setWindowTitle(TITULO)
-        self.resize(560, 760)
+        # a janela acompanha a escala da UI do Houdini, mas nunca nasce
+        # maior que a tela (a 1.5 os 760 viram 1140)
+        larg, alt = _S(560), _S(760)
+        try:
+            tela = QtWidgets.QApplication.primaryScreen().availableGeometry()
+            larg, alt = min(larg, tela.width() - 60), min(alt,
+                                                          tela.height() - 80)
+        except Exception:
+            pass
+        self.resize(larg, alt)
         self._asset = None
         self._profile = None
         self._builds = []          # Results da etapa 2, para a etapa 3
@@ -63,64 +127,32 @@ class Panel(QtWidgets.QWidget):
         abas = QtWidgets.QTabWidget()
         raiz.addWidget(abas, 2)
 
+        def aba(w, titulo):
+            """Cada aba entra com rolagem: sem isso o conteudo mais largo
+            (a linha Thumbnail) vira piso de largura e a janela nao
+            encolhe -- medido 791px de minimo na escala 1.5 do Matheus."""
+            sc = QtWidgets.QScrollArea()
+            sc.setWidgetResizable(True)
+            sc.setFrameShape(QtWidgets.QFrame.NoFrame)
+            sc.setWidget(w)
+            abas.addTab(sc, titulo)
+
         # ============ aba USD BUILDER ============
         w1 = QtWidgets.QWidget()
         v1 = QtWidgets.QVBoxLayout(w1)
 
         gF = QtWidgets.QGroupBox("Source")
         fF = QtWidgets.QFormLayout(gF)
-        linha = QtWidgets.QHBoxLayout()
         # combo editavel com as ULTIMAS PASTAS abertas (pedido do Matheus:
         # memoria de pelo menos 5)
-        self.edFonte = QtWidgets.QComboBox()
-        self.edFonte.setEditable(True)
-        self.edFonte.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
-        for p in self._recentes_carrega():
-            self.edFonte.addItem(p)
-        self.edFonte.setCurrentText(
-            self.edFonte.itemText(0) if self.edFonte.count() else "")
-        bt = QtWidgets.QPushButton("...")
-        bt.setFixedWidth(30)
-        bt.clicked.connect(lambda: self._escolher(self.edFonte))
-        btO1 = QtWidgets.QPushButton("OPEN")
-        btO1.setFixedWidth(48)
-        btO1.clicked.connect(lambda: self._abrir(self.edFonte))
-        linha.addWidget(self.edFonte, 1)
-        linha.addWidget(bt)
-        linha.addWidget(btO1)
-        wrap = QtWidgets.QWidget()
-        wrap.setLayout(linha)
-        fF.addRow("Asset Folder", wrap)
+        self.edFonte = self._combo_pasta(self._ARQ_RECENTES, primeira=True)
+        fF.addRow("Asset Folder", self._linha_pasta(self.edFonte))
 
         # pasta de texturas OPCIONAL (pedido do Matheus: "CASO nao ache a
         # textura eu aponte um local") -- mesma memoria de recentes, mas
         # comeca VAZIA: opcional nao se auto-preenche
-        linhaT = QtWidgets.QHBoxLayout()
-        self.cbTex = QtWidgets.QComboBox()
-        self.cbTex.setEditable(True)
-        self.cbTex.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
-        for p in self._recentes_carrega(self._ARQ_RECENTES_TEX):
-            self.cbTex.addItem(p)
-        self.cbTex.setCurrentText("")
-        btT = QtWidgets.QPushButton("...")
-        btT.setFixedWidth(30)
-        btT.clicked.connect(lambda: self._escolher(self.cbTex))
-        btO2 = QtWidgets.QPushButton("OPEN")
-        btO2.setFixedWidth(48)
-        btO2.clicked.connect(lambda: self._abrir(self.cbTex))
-        linhaT.addWidget(self.cbTex, 1)
-        linhaT.addWidget(btT)
-        linhaT.addWidget(btO2)
-        wrapT = QtWidgets.QWidget()
-        wrapT.setLayout(linhaT)
-        fF.addRow("Textures (optional)", wrapT)
-
-        # combos com caminho comprido nao podem DITAR a largura minima da
-        # janela ("nao consigo diminuir a janela" -- Matheus)
-        for cb in (self.edFonte, self.cbTex):
-            cb.setSizeAdjustPolicy(
-                QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
-            cb.setMinimumContentsLength(24)
+        self.cbTex = self._combo_pasta(self._ARQ_RECENTES_TEX)
+        fF.addRow("Textures (optional)", self._linha_pasta(self.cbTex))
 
         # linha separadora + Output Folder logo abaixo (pedido do Matheus)
         sep = QtWidgets.QFrame()
@@ -128,21 +160,14 @@ class Panel(QtWidgets.QWidget):
         sep.setFrameShadow(QtWidgets.QFrame.Sunken)
         fF.addRow(sep)
 
-        linha2 = QtWidgets.QHBoxLayout()
-        self.edSaida = QtWidgets.QLineEdit(
-            "C:/Users/Matheus/Downloads/MaxToLama/Testes/lops_ui")
-        bt2 = QtWidgets.QPushButton("...")
-        bt2.setFixedWidth(30)
-        bt2.clicked.connect(lambda: self._escolher(self.edSaida))
-        btO3 = QtWidgets.QPushButton("OPEN")
-        btO3.setFixedWidth(48)
-        btO3.clicked.connect(lambda: self._abrir(self.edSaida))
-        linha2.addWidget(self.edSaida)
-        linha2.addWidget(bt2)
-        linha2.addWidget(btO3)
-        wrap2 = QtWidgets.QWidget()
-        wrap2.setLayout(linha2)
-        fF.addRow("Output Folder", wrap2)
+        # saida com o MESMO esquema dos outros dois: triangulo de recentes,
+        # escolher pasta e OPEN
+        self.edSaida = self._combo_pasta(self._ARQ_RECENTES_OUT,
+                                         primeira=True)
+        if not self._texto(self.edSaida):
+            self.edSaida.setCurrentText(
+                "C:/Users/Matheus/Downloads/MaxToLama/Testes/lops_ui")
+        fF.addRow("Output Folder", self._linha_pasta(self.edSaida))
 
         # perfil: Auto (o scanner decide) ou o usuario MARCA
         self.cbPerfil = QtWidgets.QComboBox()
@@ -190,25 +215,29 @@ class Panel(QtWidgets.QWidget):
         fR.addRow("Renderers", wrapR)
 
         # opt-in do two-sided na TELA PRINCIPAL (pedido do Matheus)
-        self.ckTwoSided = QtWidgets.QCheckBox(
-            "Two-Sided (merge <Name>_Back textures as leaf back side)")
+        # rotulo curto + explicacao no tooltip: texto comprido em checkbox
+        # vira piso de largura da janela (medido: 498px so' neste)
+        self.ckTwoSided = QtWidgets.QCheckBox("Two-Sided leaves")
+        self.ckTwoSided.setToolTip(
+            "Frente/verso nas folhas: usa a textura <Nome>_Back quando ela "
+            "existe e, quando nao existe, repete a da frente no verso")
         self.ckTwoSided.setChecked(False)
         fR.addRow(self.ckTwoSided)
         v1.addWidget(gR)
 
         linha3 = QtWidgets.QHBoxLayout()
         self.btBuild = QtWidgets.QPushButton("2 — BUILD ASSETS")
-        self.btBuild.setMinimumHeight(34)
+        self.btBuild.setMinimumHeight(_S(34))
         self.btBuild.clicked.connect(self._build)
         linha3.addWidget(self.btBuild)
         self.btExport = QtWidgets.QPushButton("3 — EXPORT USD's")
-        self.btExport.setMinimumHeight(34)
+        self.btExport.setMinimumHeight(_S(34))
         self.btExport.clicked.connect(self._export)
         linha3.addWidget(self.btExport)
         wrap3 = QtWidgets.QWidget()
         wrap3.setLayout(linha3)
         v1.addWidget(wrap3)
-        abas.addTab(w1, "USD BUILDER")
+        aba(w1, "USD BUILDER")
 
         # ============ aba SETTINGS ============
         w2 = QtWidgets.QWidget()
@@ -224,10 +253,10 @@ class Panel(QtWidgets.QWidget):
             sp.setValue(valor)
             # as setas default do Qt sao minusculas ("gosto das setas mas
             # esta muito pequena") -- campo mais alto e botoes largos
-            sp.setMinimumHeight(26)
+            sp.setMinimumHeight(_S(26))
             sp.setStyleSheet(
                 "QDoubleSpinBox::up-button, QDoubleSpinBox::down-button "
-                "{ width: 22px; }")
+                "{ width: %dpx; }" % _S(22))   # px de qss nao escalam sozinhos
             return sp
 
         self.spDisp = spin(0.01)
@@ -251,21 +280,27 @@ class Panel(QtWidgets.QWidget):
         # a escala vem diferente por biblioteca (KitBash em cm = 0.01,
         # Maxtree ja em metros = 1); 0 = usa a do perfil
         self.spUnit = spin(0.0)
-        fS.addRow("Unit Scale (0 = from profile)", self.spUnit)
+        self.spUnit.setToolTip("0 = usa a escala do perfil da biblioteca")
+        fS.addRow("Unit Scale", self.spUnit)
 
-        self.ckTexShared = QtWidgets.QCheckBox(
-            "Shared textures (ONE copy in <out>/textures)")
+        self.ckTexShared = QtWidgets.QCheckBox("Shared textures")
+        self.ckTexShared.setToolTip(
+            "UMA copia das texturas em <out>/textures, em vez de uma por "
+            "asset")
         self.ckTexShared.setChecked(False)   # opcoes todas desligadas
         fS.addRow(self.ckTexShared)
 
-        self.ckGallery = QtWidgets.QCheckBox(
-            "Asset Gallery on export (implicit GL thumbnail; "
-            "<out>/asset_gallery.db)")
+        self.ckGallery = QtWidgets.QCheckBox("Asset Gallery on export")
+        self.ckGallery.setToolTip(
+            "Registra cada asset exportado em <out>/asset_gallery.db "
+            "(o banco viaja junto com os USDs) com thumbnail GL implicito")
         self.ckGallery.setChecked(False)
         fS.addRow(self.ckGallery)
 
-        self.ckTexRman = QtWidgets.QCheckBox(
-            "Convert .tex ACEScg for RenderMan (Asset_USD_Builder step)")
+        self.ckTexRman = QtWidgets.QCheckBox("Convert .tex (RenderMan)")
+        self.ckTexRman.setToolTip(
+            "Converte as texturas para .tex ACEScg, a mesma etapa que o "
+            "Asset_USD_Builder faz para o RenderMan")
         self.ckTexRman.setChecked(False)
         fS.addRow(self.ckTexRman)
 
@@ -274,7 +309,7 @@ class Panel(QtWidgets.QWidget):
         self.spThumbRes = QtWidgets.QSpinBox()
         self.spThumbRes.setRange(64, 4096)
         self.spThumbRes.setValue(512)
-        self.spThumbRes.setMinimumHeight(26)
+        self.spThumbRes.setMinimumHeight(_S(26))
         self.spSpin = spin(0.0, passo=1.0, dec=1)
         self.spSpin.setRange(-360.0, 360.0)
         self.spPitch = spin(0.0, passo=1.0, dec=1)
@@ -291,15 +326,15 @@ class Panel(QtWidgets.QWidget):
         v2.addWidget(gS)
 
         self.btUpdate = QtWidgets.QPushButton("UPDATE MATERIALS")
-        self.btUpdate.setMinimumHeight(34)
+        self.btUpdate.setMinimumHeight(_S(34))
         self.btUpdate.setToolTip(
             "Reconstroi so' os materiais dos builds da etapa 2 com os "
             "Settings atuais (geometria e binds ficam)")
         self.btUpdate.clicked.connect(self._update_materials)
         v2.addWidget(self.btUpdate)
 
-        self.btPreset = QtWidgets.QPushButton("SAVE PRESET (builder selecionado)")
-        self.btPreset.setMinimumHeight(34)
+        self.btPreset = QtWidgets.QPushButton("SAVE PRESET")
+        self.btPreset.setMinimumHeight(_S(34))
         self.btPreset.setToolTip(
             "Ajuste um builder (vray_*/karma_*/...) no capricho, selecione "
             "o no e salve: TODO build seguinte daquele renderer+tipo "
@@ -307,7 +342,7 @@ class Panel(QtWidgets.QWidget):
         self.btPreset.clicked.connect(self._save_preset)
         v2.addWidget(self.btPreset)
         v2.addStretch(1)
-        abas.addTab(w2, "SETTINGS")
+        aba(w2, "SETTINGS")
 
         # log embaixo, fora das abas (as duas escrevem nele)
         self.log = QtWidgets.QPlainTextEdit()
@@ -322,8 +357,71 @@ class Panel(QtWidgets.QWidget):
         else os.path.expanduser("~"), "usd_builder_asset_recent.json")
     _ARQ_RECENTES_TEX = os.path.join(
         os.path.dirname(_ARQ_RECENTES), "usd_builder_asset_recent_tex.json")
+    _ARQ_RECENTES_OUT = os.path.join(
+        os.path.dirname(_ARQ_RECENTES), "usd_builder_asset_recent_out.json")
 
-    def _recentes_carrega(self, arq=None):
+    def _combo_pasta(self, arq, primeira=False):
+        """Campo de pasta com o triangulo de recentes, como as linhas
+        'type directory' do Asset_USD_Builder."""
+        cb = QtWidgets.QComboBox()
+        cb.setEditable(True)
+        cb.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+        nossas = self._recentes_json(arq)
+        for p in self._recentes_carrega(arq):
+            cb.addItem(p)
+        # auto-preenche so' com a ULTIMA PASTA NOSSA: as do historico do
+        # Houdini ficam no triangulo, mas escrever sozinho uma pasta de
+        # saida vinda de outro trabalho seria pedir para exportar no lugar
+        # errado
+        cb.setCurrentText(nossas[0] if (primeira and nossas) else "")
+        # caminho comprido nao pode DITAR a largura minima da janela
+        # ("nao consigo diminuir a janela" -- Matheus): o combo trunca o
+        # texto e o caminho inteiro vai para o tooltip
+        cb.setSizeAdjustPolicy(
+            QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        cb.setMinimumContentsLength(18)
+        cb.setToolTip(cb.currentText())
+        cb.currentTextChanged.connect(
+            lambda t, c=cb: c.setToolTip(t))
+        return cb
+
+    def _linha_pasta(self, campo):
+        """campo + escolher + OPEN na mesma linha. No HDA do Carlo o
+        Houdini desenha isso sozinho para todo parm 'type directory'; numa
+        janela Qt os tres widgets sao na mao."""
+        linha = QtWidgets.QHBoxLayout()
+        linha.setContentsMargins(0, 0, 0, 0)
+        linha.addWidget(campo, 1)
+        linha.addWidget(_bt_icone("BUTTONS_chooser_folder", "choose folder",
+                                  lambda: self._escolher(campo), "..."))
+        linha.addWidget(_bt("OPEN", "open this folder in Explorer",
+                            lambda: self._abrir(campo)))
+        w = QtWidgets.QWidget()
+        w.setLayout(linha)
+        return w
+
+    def _hist_houdini(self):
+        """As pastas do triangulo de recentes do PROPRIO Houdini
+        (dir.history, secao DIRECTORY) -- e' dai que o Asset_USD_Builder
+        tira o menu dele, entao a nossa janela oferece as mesmas."""
+        arq = os.path.join(os.path.dirname(self._ARQ_RECENTES),
+                           "dir.history")
+        saida, dentro = [], False
+        try:
+            with open(arq, "r", encoding="utf-8", errors="ignore") as fh:
+                for ln in fh:
+                    ln = ln.strip()
+                    if not dentro:
+                        dentro = (ln == "DIRECTORY")
+                    elif ln == "}":
+                        break
+                    elif ln and ln != "{":
+                        saida.append(ln.replace("\\", "/"))
+        except Exception:
+            return []
+        return saida[:12]
+
+    def _recentes_json(self, arq=None):
         import json
         try:
             with open(arq or self._ARQ_RECENTES, "r",
@@ -332,12 +430,21 @@ class Panel(QtWidgets.QWidget):
         except Exception:
             return []
 
+    def _recentes_carrega(self, arq=None):
+        lista = self._recentes_json(arq)
+        vistos = set(p.lower() for p in lista)
+        for p in self._hist_houdini():          # completa com as do Houdini
+            if p.lower() not in vistos and os.path.isdir(p):
+                lista.append(p)
+                vistos.add(p.lower())
+        return lista[:12]
+
     def _recentes_salva(self, pasta, combo=None, arq=None):
         import json
         combo = combo if combo is not None else self.edFonte
         arq = arq or self._ARQ_RECENTES
         pasta = pasta.replace("\\", "/")
-        lista = [pasta] + [p for p in self._recentes_carrega(arq)
+        lista = [pasta] + [p for p in self._recentes_json(arq)
                            if p.lower() != pasta.lower()]
         try:
             with open(arq, "w", encoding="utf-8") as fh:
@@ -347,7 +454,7 @@ class Panel(QtWidgets.QWidget):
         combo.blockSignals(True)
         atual = combo.currentText()
         combo.clear()
-        for p in lista[:8]:
+        for p in self._recentes_carrega(arq):
             combo.addItem(p)
         combo.setCurrentText(atual)
         combo.blockSignals(False)
@@ -480,7 +587,9 @@ class Panel(QtWidgets.QWidget):
         if not renderers:
             self._diz("check at least one renderer (USD BUILDER tab).")
             return
-        out = self.edSaida.text().strip() or None
+        out = self._texto(self.edSaida) or None
+        if out:
+            self._recentes_salva(out, self.edSaida, self._ARQ_RECENTES_OUT)
         tex_dir = None
         if out and self.ckTexShared.isChecked():
             tex_dir = out.rstrip("/") + "/textures"
@@ -649,7 +758,7 @@ class Panel(QtWidgets.QWidget):
         if not vivos:
             self._diz("nothing built — run 2 — BUILD ASSETS first.")
             return
-        out = self.edSaida.text().strip()
+        out = self._texto(self.edSaida)
         db = (out.rstrip("/") + "/asset_gallery.db"
               if out and self.ckGallery.isChecked() else None)
         t = log.Tempo()

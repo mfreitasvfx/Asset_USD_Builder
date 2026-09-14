@@ -836,3 +836,52 @@ Quatro pedidos do Matheus no teste do BigMediumSmall:
 
 AVISO ambiente: o vray_for_houdini_21.0.json APARECEU movido p/
 packages/bkp hoje 17:47 (nao foi a ferramenta); restaurado e conferido.
+
+## O OPEN aparecia vazio: px fixo x Global UI Size (2026-09-13, cont.)
+
+"ta faltando no nosso" (screenshot do HDA do Carlo ao lado da nossa
+janela): os tres botoes OPEN existiam, mas saiam VAZIOS na tela do
+Matheus.
+
+CAUSA MEDIDA (nao era a fonte, era o tema + a escala):
+  - ui.pref do Matheus: general.ui.scale := 1.5 (no 21.0 e no 20.5)
+  - $HFS/houdini/config/Styles/base.qss:426 poe
+    QPushButton { padding-left: @15px@; padding-right: @15px@; }
+    e esses tokens sao multiplicados pelo Global UI Size -> 22px de cada
+    lado na escala 1.5, 44px de padding dentro de um botao de 48px
+  - sobrou 4px para a palavra: o Qt nao elide, CLIPA centralizado, e o
+    botao fica vazio. Provado em PNG por tamanho de fonte x escala
+    (1.00 mostra "PE", 1.25 meia letra, 1.50 nada).
+
+CONSERTOS (nenhum px fixo decide mais largura/altura):
+  - _bt(): largura = max(sizeHint, texto na fonte corrente + 36*escala).
+    Medido na escala 1.5: OPEN precisa 92px, ficou 100; "..." precisa
+    61, ficou 69. Nas tres versoes (20.5/PySide2, 21, 22) monta igual.
+  - _S(n) = hou.ui.scaledSize(n) com fallback headless; aplicado no
+    resize inicial, nos setMinimumHeight (34/26) e no width dos botoes
+    de spinbox no qss (px de stylesheet nao escalam sozinhos).
+  - A janela nunca nasce maior que a tela (na escala 1.5 os 760 de
+    altura viravam 1140).
+  - _bt_icone(): botao de escolher pasta com o icone nativo
+    BUTTONS_chooser_folder (receita do FileChooserButton da SideFX),
+    com canCreateIcon/isNull checados e fallback "..." sem GUI.
+
+JANELA QUE ENCOLHE (a queixa antiga, agora medida de verdade):
+  minimo era 852x811 na escala 1.5. Quem mandava: rotulo comprido de
+  checkbox ("Asset Gallery on export (...)" sozinho pedia 588px) e a
+  linha Thumbnail (4 spinboxes). Rotulos encurtados com a explicacao no
+  tooltip -> 791; cada aba dentro de um QScrollArea -> 151x206.
+
+PARIDADE COM O HDA (medido no
+Carlo_Jongen__Asset_USD_Builder__2.1.otl): a linha dele e' so' um parm
+"type directory" + um button "OPEN" com joinnext; o triangulo e o icone
+de pasta o Houdini desenha de graca, e o menu do triangulo sai de
+$HOUDINI_USER_PREF_DIR/dir.history (secao DIRECTORY). Entao:
+  - _hist_houdini() le esse mesmo dir.history e completa os nossos
+    recentes -- as pastas que ele usa no Houdini aparecem no triangulo
+    da nossa janela;
+  - Output Folder virou combo editavel com memoria propria
+    (usd_builder_asset_recent_out.json), como os outros dois campos;
+  - auto-preenchimento so' com a memoria NOSSA: uma pasta de saida
+    vinda do historico geral do Houdini seria pedir export no lugar
+    errado.
