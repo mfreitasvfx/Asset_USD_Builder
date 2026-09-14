@@ -44,6 +44,13 @@ class Profile(object):
         # unit_scale DEFAULT 0.01 (decisao do Matheus, 2026-09-12): o
         # pipeline exporta em CENTIMETROS (Max, KitBash, Megascans FBX) e
         # o USD e' metros. O Unit Scale da janela (0 = do perfil) sobrepoe.
+        # MEDIDO por biblioteca (2026-09-13, bbox do fbx x mundo real):
+        #   KitBash  Treasure Island 23264 un = 232 m -> cm, 0.01 certo
+        #            (prova: o OBJ do MESMO set mede exatamente 1/100)
+        #   Maxtree  V93 soja 48 un = 48 cm          -> cm, 0.01 certo
+        #   BigMediumSmall carro 5.36 un = 5,36 m    -> JA' em metros, 1.0
+        # O UnitScaleFactor gravado no FBX mente nas tres: nao da' para
+        # decidir pelo header, so' medindo.
         self.key = key
         self.label = label
         self.library = library
@@ -140,6 +147,20 @@ PERFIS = {
         texture_subdirs=("KB3DTextures", "textures"),
         proxy=True, simproxy=True, center=True, unit_scale=0.01,
         notes="um arquivo com dezenas de objetos e um atlas compartilhado",
+    ),
+
+    "bigmediumsmall": Profile(
+        "bigmediumsmall", "BigMediumSmall", _lib.BIGMEDIUMSMALL,
+        steps=_BASE,
+        lod_policy="all",
+        rough_source="auto",
+        # MEDIDO no CP_Vehicles (2026-09-13): carro 5.358 x 1.663 x 2.270,
+        # caminhonete 5.26, moto 2.65 -- ja' esta' em METROS, entao o 0.01
+        # dos outros pacotes deixava o carro com 5,4 cm. O header do FBX
+        # diz UnitScaleFactor=100 (cm) e MENTE.
+        unit_scale=1.0,
+        notes="texturas embutidas no fbx (.fbm), material com espaco no "
+              "nome, rabo _Bake1_PBR; geometria ja' em metros",
     ),
 
     "construido": Profile(

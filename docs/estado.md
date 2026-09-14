@@ -885,3 +885,52 @@ $HOUDINI_USER_PREF_DIR/dir.history (secao DIRECTORY). Entao:
   - auto-preenchimento so' com a memoria NOSSA: uma pasta de saida
     vinda do historico geral do Houdini seria pedir export no lugar
     errado.
+
+## Unit Scale: o 0.01 escondido (2026-09-13, cont.)
+
+"o BigMediumSmall ja' vem certo e nesse caso eu zeraria na ferramenta,
+mas os builders ja' vem com valor no transform" -- e o problema era
+maior do que a interface: o CP_Vehicles estava saindo 100x MENOR.
+
+MEDIDO (bbox do fbx x tamanho no mundo real):
+  BigMediumSmall  carro 5.358 un  = 5,36 m  -> JA' em metros  -> 1.0
+                  (caminhonete 5.26, moto 2.65 x 1.32 de altura)
+  Maxtree V93     soja 48.26 un   = 48 cm   -> centimetros    -> 0.01
+  KitBash3D       set 23264 un    = 232 m   -> centimetros    -> 0.01
+                  prova: o OBJ do MESMO set mede exatamente 1/100 do fbx
+  O UnitScaleFactor gravado no FBX MENTE nas tres (o BMS declara 100/cm
+  justamente sendo o unico em metros) -- nao da' para ler do header.
+
+PROVA do estrago: o USD do cp_vh_car_A tinha extent 0.0536 x 0.0166 x
+0.0227 com metersPerUnit 1.0, ou seja um carro de 5,4 cm.
+
+O QUE MUDOU:
+1. Perfil bigmediumsmall (unit_scale=1.0), detectado por library.classify
+   pelo nome do pacote no caminho -- vale ja' no PRIMEIRO scan, antes de
+   existir .fbm -- ou pela marca _Bake<N>_PBR_ das texturas embutidas. O
+   KitBash continua ganhando na frente (testado). Tambem entrou na lista
+   de perfis manuais da janela.
+2. O SCAN escreve a escala do perfil no campo Unit Scale e loga
+   "unit scale 1 (BigMediumSmall)". Antes o campo ficava em 0 ("usa o
+   perfil") e o 0.01 entrava escondido no convert_units: era esse o
+   "valor no transform" que aparecia sem ele ter pedido. 1 = sem
+   conversao; 0 continua significando "deixa o perfil decidir".
+3. builder.medir_usd(): le o extent que o USD ja' gravou (nao cozinha
+   nada) e o EXPORT loga "size: 5.358 x 1.663 x 2.270 m". Fora da faixa
+   (menor que 10 cm ou maior que 500 m) sai aviso de escala suspeita; se
+   o extent vier vazio, avisa que o USD saiu sem geometria.
+
+CONFERIDO ponta a ponta no H21: carro 5.358 m com convert_units 1.0 e
+soja 0.483 m com convert_units 0.01; classify sem regressao nas 5
+bibliotecas.
+
+ATENCAO ao reexportar: a escala fica ASSADA nos pontos (o convert_units
+e' um xform SOP antes do component builder, como no HDA do Carlo), entao
+os USDs do CP_Vehicles exportados ate' hoje precisam ser refeitos -- nao
+da' para consertar mexendo num xformOp.
+
+Nota de teste: os wrap.usda de sonda em Testes/zea_proxy_ab declaram
+metersPerUnit 0.01 enquanto os assets declaram 1.0 -- sao scripts
+descartaveis de scratchpad, nao do produto (nada no repo escreve
+metersPerUnit). Se abrir aqueles wraps para conferir escala, a leitura
+sai 100x errada.

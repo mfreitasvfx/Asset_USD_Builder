@@ -175,6 +175,7 @@ class Panel(QtWidgets.QWidget):
         for chave, rotulo in (("megascans", "Megascans"),
                               ("maxtree", "Maxtree (plants)"),
                               ("kitbash", "KitBash3D"),
+                              ("bigmediumsmall", "BigMediumSmall"),
                               ("construido", "Already built"),
                               ("generico", "Generic")):
             self.cbPerfil.addItem(rotulo, chave)
@@ -280,7 +281,11 @@ class Panel(QtWidgets.QWidget):
         # a escala vem diferente por biblioteca (KitBash em cm = 0.01,
         # Maxtree ja em metros = 1); 0 = usa a do perfil
         self.spUnit = spin(0.0)
-        self.spUnit.setToolTip("0 = usa a escala do perfil da biblioteca")
+        self.spUnit.setToolTip(
+            "Escala do no' convert_units. O SCAN preenche com a escala do "
+            "perfil (KitBash/Maxtree = 0.01 porque vem em cm; "
+            "BigMediumSmall = 1 porque ja' vem em metros). 1 = sem "
+            "conversao; 0 = deixa o perfil decidir")
         fS.addRow("Unit Scale", self.spUnit)
 
         self.ckTexShared = QtWidgets.QCheckBox("Shared textures")
@@ -528,6 +533,13 @@ class Panel(QtWidgets.QWidget):
         self.ckProxy.setChecked(bool(getattr(self._profile, "proxy", False)))
         self.ckSimproxy.setChecked(
             bool(getattr(self._profile, "simproxy", False)))
+        # o Unit Scale tambem sai do perfil e fica A VISTA: antes o campo
+        # ficava em 0 ("usa o perfil") e o 0.01 entrava escondido no
+        # convert_units -- "os builders ja' vem com valor no transform"
+        esc = float(getattr(self._profile, "unit_scale", 1.0) or 1.0)
+        self.spUnit.setValue(esc)
+        self._diz("unit scale %g (%s) — 1 = no conversion; SETTINGS tab"
+                  % (esc, self._profile.label))
         self.lbResumo.setText(self._asset.resumo().replace("   ", "  "))
         self._diz(self._asset.resumo())
         for a in avisos:
@@ -753,6 +765,7 @@ class Panel(QtWidgets.QWidget):
         """
         _reload_core()
         from usd_builder_asset import gallery, log
+        from usd_builder_asset.lops import builder
         vivos = [r for r in self._builds
                  if r.nodes.get("componentoutput") is not None]
         if not vivos:
@@ -789,6 +802,21 @@ class Panel(QtWidgets.QWidget):
                     self._diz("✓ EXPORT: %s ........... %d/%d%s"
                               % (res.asset_name, i + 1, len(vivos),
                                  extra if ok else "  (NAO escrito!)"))
+                    # conferencia de escala: o tamanho sai do extent que o
+                    # proprio USD gravou, entao nao custa cook nenhum
+                    tam = builder.medir_usd(res.usd_path) if ok else None
+                    if tam:
+                        self._diz("   size: %.3f x %.3f x %.3f m"
+                                  % tam)
+                        maior = max(tam)
+                        if maior < 0.10 or maior > 500.0:
+                            self._diz("   ! escala suspeita (%.3f m no maior "
+                                      "lado) — confira o Unit Scale na aba "
+                                      "SETTINGS" % maior)
+                    elif ok:
+                        self._diz("   ! USD escrito SEM geometria (extent "
+                                  "vazio) — o nome do objeto bate com o do "
+                                  "arquivo?")
                 except Exception:
                     self._diz(traceback.format_exc())
         self._diz(t.build_time())
