@@ -969,3 +969,30 @@ livre numa grade de 6 colunas, sem tocar no resto da cena.
 NAO replicado de proposito: o blast de limpeza do Building_01 ("pode
 ignorar o clean_geo blaster, so fiz para remover uns elementos") -- sao
 ranges de primitiva fixos daquele fbx.
+
+## Cor do proxy e nome do proxy por asset (2026-09-14, cont.)
+
+1. "mesmo colocando cor no proxy ele e' sobrescrito pelo usd preview":
+   MEDIDO -- o bind ia para /ASSET/geo (raiz) quando o asset tem material
+   unico, e binding no USD DESCE por toda a subarvore: /geo/proxy/add1
+   herdava o material e o UsdPreviewSurface ganhava do displayColor.
+   Prova no Building_01: o prim do proxy tinha cor 0.617/0.974/0.473 e
+   ainda assim aparecia com o shader.
+   Conserto em _bind_parts: a raiz do bind passa a ser /ASSET/geo/render
+   quando ha branches (single) e /ASSET/geo/render/*/<parte> no
+   multi-material; sem branches continua /ASSET/geo e /ASSET/geo/*/<parte>.
+   Depois: /geo/render com o material, /geo/proxy/add1 com
+   ComputeBoundMaterial = NENHUM e a cor intacta. Binds sem regressao --
+   Zea (multi, com branches) 2/2 e CP_Vehicles (sem branches) 6/6.
+
+2. Nome do proxy quando o fbx tem VARIOS assets (pedido dele): o painel
+   passa proxy_base = nome do asset quando list_assets_in_file devolve
+   mais de um (ou quando a lista de objetos tem mais de um); com um asset
+   so' continua o nome do arquivo, como estava.
+     proxy_base=None         -> <dir>/proxy/1.fbx
+     proxy_base=Building_01  -> <dir>/proxy/Building_01.fbx
+   library.proxy_prontos(geo, base) procura pelo mesmo nome.
+   Bug pego no caminho: dentro de _branches a variavel 'base' ja' era o
+   NO' da cadeia (delete_small_parts1) e engolia o parametro com o nome
+   -- o ROP saia gravando 'delete_small_parts1.fbx'. Parametro renomeado
+   para nome_base.

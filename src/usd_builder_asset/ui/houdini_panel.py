@@ -619,7 +619,9 @@ class Panel(QtWidgets.QWidget):
                          "pitch": self.spPitch.value(),
                          "dist": self.spDist.value()}
 
-        # alvos: (geo_path|None, asset_name|None, parts|None)
+        # alvos: (geo_path|None, asset_name|None, parts|None,
+        #         proxy_base|None -- nome do proxy quando o arquivo tem
+        #         MAIS DE UM asset dentro, senao um sobrescreve o outro)
         alvos = []
         if self._modo == "multifbx":
             arquivos = [i.text() for i in self.lista.selectedItems()]
@@ -651,17 +653,20 @@ class Panel(QtWidgets.QWidget):
                     self._diz("PROCESSING FILE: %s (%d assets)"
                               % (nome_arq, len(tops)))
                 for top in tops:
-                    alvos.append((f, top, partes_f))
+                    alvos.append((f, top, partes_f,
+                                  top if len(tops) > 1 else None))
         elif self._modo == "objetos":
             perfil = profiles.custom(base_key, **over)
             sel = [i.text() for i in self.lista.selectedItems()]
             if not sel:
                 self._diz("select at least one object from the list.")
                 return
-            alvos = [(None, nome, None) for nome in sel]
+            varios = self.lista.count() > 1
+            alvos = [(None, nome, None, nome if varios else None)
+                     for nome in sel]
         else:
             perfil = profiles.custom(base_key, **over)
-            alvos = [(None, None, None)]
+            alvos = [(None, None, None, None)]
 
         self._builds = []
         t = log.Tempo()
@@ -669,7 +674,7 @@ class Panel(QtWidgets.QWidget):
                   + "-" * 10)
         with hou.InterruptableOperation("USD_Builder_Asset build",
                                         open_interrupt_dialog=True) as op:
-            for i, (geo, alvo, partes) in enumerate(alvos):
+            for i, (geo, alvo, partes, pbase) in enumerate(alvos):
                 op.updateProgress(float(i) / max(1, len(alvos)))
                 try:
                     res = builder.build_asset(
@@ -679,7 +684,8 @@ class Panel(QtWidgets.QWidget):
                         tex_dir=tex_dir, disp_scale=self.spDisp.value(),
                         settings=settings, thumb_cfg=thumb_cfg,
                         two_sided=self.ckTwoSided.isChecked(),
-                        force_proxy=self.ckForce.isChecked())
+                        force_proxy=self.ckForce.isChecked(),
+                        proxy_base=pbase)
                     self._builds.append(res)
                     self._diz("✓ Building Asset SubNet: %s ........... %d/%d"
                               % (res.asset_name, i + 1, len(alvos)))

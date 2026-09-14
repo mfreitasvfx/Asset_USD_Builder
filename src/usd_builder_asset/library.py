@@ -411,7 +411,7 @@ def atlas_variants(asset):
     return out or None
 
 
-def proxy_prontos(geo_path):
+def proxy_prontos(geo_path, base=None):
     """Proxy/simproxy JA' GRAVADOS ao lado do arquivo fonte.
 
     Convencao medida no setup do Matheus (teste_proxy.hip, Building_01):
@@ -425,6 +425,10 @@ def proxy_prontos(geo_path):
         return out
     p = str(geo_path).replace("\\", "/")
     pasta, arq = os.path.dirname(p), os.path.basename(p)
+    if base:
+        # arquivo com VARIOS assets dentro: o nome vem do asset, senao um
+        # sobrescreveria o proxy do outro (pedido do Matheus)
+        arq = base + os.path.splitext(arq)[1]
     for chave in ("proxy", "simproxy"):
         cam = "%s/%s/%s" % (pasta, chave, arq)
         if os.path.isfile(cam):

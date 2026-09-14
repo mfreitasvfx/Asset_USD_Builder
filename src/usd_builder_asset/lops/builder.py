@@ -195,22 +195,30 @@ def _proxy_vdb(sop, base):
     return n
 
 
-def _rop_fbx(sop, entrada, sub, nome_no):
+def _rop_fbx(sop, entrada, sub, nome_no, nome_base=None):
     """ROP que grava o proxy/simproxy AO LADO do fonte.
 
-    O nome sai do proprio fbx_in por expressao ("o ropfbx puxar o mesmo
-    nome do arquivo de file"): <pasta do fonte>/<sub>/<mesmo arquivo>.
-    HScript nao tem basename/dirname (medido), por isso a expressao e'
-    Python. Depois de gravado, o SCAN seguinte acha o arquivo e monta so'
-    um File SOP no lugar desta rede toda.
+    A PASTA sai sempre do proprio fbx_in por expressao ("o ropfbx puxar o
+    mesmo nome do arquivo de file"): <pasta do fonte>/<sub>/... HScript
+    nao tem basename/dirname (medido), por isso a expressao e' Python.
+    O NOME e' o do arquivo, ou o do asset quando ha' varios assets no
+    mesmo fbx -- senao um sobrescreveria o proxy do outro.
+    Depois de gravado, o SCAN seguinte acha o arquivo e monta so' um File
+    SOP no lugar desta rede toda.
     """
     rop = sop.createNode("rop_fbx", nome_no)
     rop.setInput(0, entrada)
     rop.setColor(hou.Color(0.65, 0.4, 0.5))
+    if nome_base:
+        arquivo = ('os.path.splitext(os.path.basename(p))[1]')
+        nome = 'return os.path.dirname(p) + "/%s/%s" + %s' % (
+            sub, nome_base, arquivo)
+    else:
+        nome = ('return os.path.dirname(p) + "/%s/" + os.path.basename(p)'
+                % sub)
     rop.parm("sopoutput").setExpression(
         'import os\n'
-        'p = hou.node("../fbx_in").evalParm("file")\n'
-        'return os.path.dirname(p) + "/%s/" + os.path.basename(p)' % sub,
+        'p = hou.node("../fbx_in").evalParm("file")\n' + nome,
         language=hou.exprLanguage.Python)
     return rop
 
@@ -224,7 +232,8 @@ def _le_pronto(sop, caminho, nome_no, saida):
     return f
 
 
-def _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res):
+def _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res,
+              nome_base=None):
     """Monta os ramos proxy/simproxy, ou so' carrega o que ja' existe."""
     falta_proxy = quer_proxy and "proxy" not in prontos
     falta_sim = quer_sim and "simproxy" not in prontos
@@ -265,7 +274,7 @@ def _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res):
     if falta_proxy:
         add = _fecha_proxy(sop, fim_proxy)
         sop.node("proxy").setInput(0, add)
-        _rop_fbx(sop, add, "proxy", "rop_fbx_proxy")
+        _rop_fbx(sop, add, "proxy", "rop_fbx_proxy", nome_base)
 
     if falta_sim:
         if estilo == "vdb":
@@ -291,7 +300,8 @@ def _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res):
             add3.setInput(0, adel2)
             ultimo = add3
         sop.node("simproxy").setInput(0, ultimo)
-        _rop_fbx(sop, ultimo, "simproxy", "rop_fbx_simproxy")
+        _rop_fbx(sop, ultimo, "simproxy", "rop_fbx_simproxy",
+                 nome_base)
 
 
 def build_asset(asset, profile, out_dir=None, asset_name=None,
@@ -299,7 +309,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
                 lod=None, write=True, disp_scale=0.01,
                 geo_path=None, parts=None, variants=None,
                 tex_dir=None, cleanup=False, settings=None, thumb=False,
-                two_sided=False, force_proxy=False,
+                two_sided=False, force_proxy=False, proxy_base=None,
                 thumb_cfg=None):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 
@@ -444,8 +454,10 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         estilo = estilo if estilo in ("plant", "boxes", "vdb") else "vdb"
         # ja' gravados ao lado do fonte? entao so' carrega -- a menos que
         # o Force esteja ligado ("para caso eu queira fazer um novo")
-        prontos = {} if force_proxy else _lib.proxy_prontos(geo_path)
-        _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res)
+        prontos = ({} if force_proxy
+                   else _lib.proxy_prontos(geo_path, proxy_base))
+        _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos,
+                  res, proxy_base)
     # nos criados por codigo nascem empilhados; arruma como na GUI
     sop.layoutChildren()
     cg.parm("partitionattribs").set("shop_materialpath")
@@ -469,7 +481,8 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
             cm_v.setInput(0, tail_lop)
             cm_v.setInput(1, ml_v)
             cm_v.parm("variantname").set(var_nome)
-            _bind_parts(cm_v, ligadas, single=len(var_parts) == 1)
+            _bind_parts(cm_v, ligadas, single=len(var_parts) == 1,
+                        tem_branches=quer_proxy or quer_sim)
             res.parts_bound.extend("%s:%s" % (var_nome, p) for p in ligadas)
             tail_lop = cm_v
         cm = tail_lop
@@ -568,7 +581,8 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     cm.parm("variantname").set("default")
     # padroes em _bind_parts (unico lugar): cobrem malha plana E aninhada
     # em /geo/render quando ha branches de proxy/simproxy
-    _bind_parts(cm, res.parts_bound, single)
+    _bind_parts(cm, res.parts_bound, single,
+                tem_branches=quer_proxy or quer_sim)
     res.nodes["componentmaterial"] = cm
 
     # -- saida ------------------------------------------------------------
@@ -804,17 +818,21 @@ def _matlib(net, sufixo, partes_dict, subsets, profile, asset, renderers,
     return ml, ligadas
 
 
-def _bind_parts(cm, ligadas, single):
+def _bind_parts(cm, ligadas, single, tem_branches=False):
     cm.parm("nummaterials").set(len(ligadas))
     for i, parte in enumerate(ligadas, start=1):
-        # dois padroes (lista separada por espaco): sem branches a malha
-        # fica em /geo/<mesh>/<subset>; com proxy/simproxy o
-        # componentgeometry aninha em /geo/render/<mesh>/<subset> --
-        # MEDIDO no A/B (Zea): so' com /geo/*/ o USD saia com ZERO binds
-        # ("nao mostra o shader no render"); `**` no meio nao casa.
-        padrao = ("/ASSET/geo" if single
-                  else "/ASSET/geo/*/{p} /ASSET/geo/render/*/{p}".format(
-                      p=parte))
+        # A raiz do bind depende dos branches: sem eles a malha fica em
+        # /geo/<mesh>/<subset>; com proxy/simproxy o componentgeometry
+        # aninha em /geo/render/<mesh>/<subset> -- MEDIDO no A/B (Zea):
+        # com o padrao errado o USD saia com ZERO binds ("nao mostra o
+        # shader no render"); `**` no meio nao casa.
+        # Bindar em /ASSET/geo (a raiz) NAO serve quando ha branches:
+        # binding no USD desce por toda a subarvore, entao o proxy herdava
+        # o material e o shader comia o displayColor dele (medido no
+        # Building_01: /geo/proxy/add1 tinha cor 0.617/0.974/0.473 e
+        # renderizava com o UsdPreviewSurface).
+        raiz = "/ASSET/geo/render" if tem_branches else "/ASSET/geo"
+        padrao = raiz if single else "%s/*/%s" % (raiz, parte)
         cm.parm("primpattern%d" % i).set(padrao)
         cm.parm("matspecpath%d" % i).set("/ASSET/mtl/%s" % parte)
 
