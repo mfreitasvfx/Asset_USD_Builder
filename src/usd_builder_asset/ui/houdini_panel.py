@@ -271,8 +271,15 @@ class Panel(QtWidgets.QWidget):
         hbP = QtWidgets.QHBoxLayout()
         self.ckProxy = QtWidgets.QCheckBox("proxy (GL)")
         self.ckSimproxy = QtWidgets.QCheckBox("simproxy (physics)")
+        # o proxy/simproxy ja' gravado ao lado do fbx (pasta proxy/ e
+        # simproxy/) entra como um File so'; Force monta a rede de novo
+        self.ckForce = QtWidgets.QCheckBox("force")
+        self.ckForce.setToolTip(
+            "Monta a rede de proxy/simproxy mesmo que o arquivo ja' exista "
+            "em <pasta do fbx>/proxy e /simproxy -- para refazer o setup")
         hbP.addWidget(self.ckProxy)
         hbP.addWidget(self.ckSimproxy)
+        hbP.addWidget(self.ckForce)
         wrapP = QtWidgets.QWidget()
         wrapP.setLayout(hbP)
         fS.addRow("Branches", wrapP)
@@ -671,7 +678,8 @@ class Panel(QtWidgets.QWidget):
                         geo_path=geo, parts=partes,
                         tex_dir=tex_dir, disp_scale=self.spDisp.value(),
                         settings=settings, thumb_cfg=thumb_cfg,
-                        two_sided=self.ckTwoSided.isChecked())
+                        two_sided=self.ckTwoSided.isChecked(),
+                        force_proxy=self.ckForce.isChecked())
                     self._builds.append(res)
                     self._diz("✓ Building Asset SubNet: %s ........... %d/%d"
                               % (res.asset_name, i + 1, len(alvos)))

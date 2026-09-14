@@ -912,3 +912,60 @@ PROCESSO (recado dele nesta rodada): fazer SO' o que foi pedido, e
 bateria longa de teste antes de entregar deixa o trabalho lento. Perfil
 proprio do BigMediumSmall, deteccao automatica de biblioteca e medicao
 de tamanho no export foram invencoes minhas nesta rodada e sairam.
+
+## Os tres setups do teste_proxy.hip viram a base (2026-09-14)
+
+O Matheus montou tres setups em Testes/teste_proxy.hip e disse "serao
+nossa base". Lidos no a no; o que a ferramenta monta agora:
+
+COMUM AOS TRES: labs::delete_small_parts abre os ramos e o proxy fecha em
+color (class Detail, colortype Random, seed = EXPRESSAO
+nprims(opinputpath(".",0)) -- o pedido dele de usar a contagem de prims
+como seed) -> attribdelete asset_name -> add Remove Unused Points.
+Saiu o esquema antigo (set_color_data + Color 'from Attribute' +
+nice_color HSV + attribpromote): o seed por contagem substitui tudo isso.
+
+PROXY POR ESTILO (profile.proxy_style):
+  plant  Maxtree   lowres_geo::1.1.1 2% -> fuse tol3d 0.0175
+  boxes  KitBash   connectivity(prim) -> compile+foreach por peca ->
+                   bound -> fuse 0.02 -> normal -> clean fixoverlap
+  vdb    default   vdbfrompolygons -> convertvdb(poly) ->
+                   remesh 0.1949 -> polyreduce 31.53% -> normal
+SIMPROXY: plant/boxes = assemble -> convexdecomposition -> attribdelete
+class -> add; vdb = shrinkwrap -> normal -> add. No boxes ele sai do
+clean1 do proxy, como no Building_01.
+delete_small_parts: plant mode Perimeter/2.39; boxes 0.2; vdb 0.3 (Area).
+
+ARQUIVO PRONTO EM DISCO (pedido: "se tiver proxy e simproxy com o mesmo
+nome ele cria um unico file"): a convencao medida e' pasta-irma, nao
+sufixo -- <dir>/1.fbx, <dir>/proxy/1.fbx, <dir>/simproxy/1.fbx, mesmo
+nome. library.proxy_prontos() acha, e o builder monta SO' um File SOP por
+ramo (10 nos em vez de 27, medido no Building_01). O checkbox "force" na
+aba SETTINGS monta a rede de novo mesmo com o arquivo la'.
+
+ROP FBX PROCEDURAL (pedido: "puxar o mesmo nome do arquivo de file"):
+quando a rede e' montada, cada ramo ganha um rop_fbx com sopoutput por
+EXPRESSAO PYTHON derivada do fbx_in --
+    os.path.dirname(p) + "/proxy/" + os.path.basename(p)
+(HScript nao tem basename/dirname: medido, as duas devolvem string vazia
+sem erro). Assim o ROP escreve onde o SCAN seguinte vai procurar.
+ATENCAO: o nome vem do ARQUIVO, como ele pediu. Num fbx com VARIOS assets
+(KitBash de 28 objetos) todos escreveriam no mesmo proxy/<arquivo>.fbx --
+para esses, ou se exporta um por vez, ou o nome teria que vir do asset.
+
+BUG ACHADO NO CAMINHO: o SCAN estava listando proxy/1.fbx e
+simproxy/1.fbx como se fossem assets -- o build montou um asset chamado
+"convexdecomposition2" (o nome do no' de onde o rop_fbx2 dele exportou).
+As duas pastas entraram em library._IGNORAR; a lista do Post Apocalypse
+voltou de 66 para 64 arquivos.
+
+LAYOUT: o que estava bagunçado era /stage, nao o miolo (as 9 chamadas de
+layoutChildren ja' cobrem subnet, sopnet, matlib e cada builder de
+material). moveToGoodPosition() nao resolvia porque posiciona pelas
+CONEXOES e os subnets de asset nao se ligam entre si -- num lote todos
+caiam no mesmo ponto. Agora cada asset novo procura a primeira posicao
+livre numa grade de 6 colunas, sem tocar no resto da cena.
+
+NAO replicado de proposito: o blast de limpeza do Building_01 ("pode
+ignorar o clean_geo blaster, so fiz para remover uns elementos") -- sao
+ranges de primitiva fixos daquele fbx.

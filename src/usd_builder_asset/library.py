@@ -63,7 +63,11 @@ _LAYERS_OPCIONAIS = {"extra.usdc"}
 
 # Subpastas que nunca contem fonte de asset.
 _IGNORAR = {"backup", "previews", "thumbs", "thumbnails", "render", "out",
-            "__pycache__", ".git"}
+            "__pycache__", ".git",
+            # saida do nosso proprio rop_fbx: sao o proxy do asset, nao
+            # assets novos -- sem isso o SCAN listava 'simproxy/1.fbx' e o
+            # build montava um asset chamado 'convexdecomposition2'
+            "proxy", "simproxy"}
 
 # Quando o mesmo papel/geometria aparece em dois formatos -- o Megascans
 # entrega Displacement em .exr E .jpg, o KitBash da' .fbx E .obj -- ficar com
@@ -405,6 +409,27 @@ def atlas_variants(asset):
         if mapas:
             out.append((v, {nome: mapas}))
     return out or None
+
+
+def proxy_prontos(geo_path):
+    """Proxy/simproxy JA' GRAVADOS ao lado do arquivo fonte.
+
+    Convencao medida no setup do Matheus (teste_proxy.hip, Building_01):
+    o nome do arquivo e' o MESMO do fonte, quem muda e' a pasta --
+        <dir>/1.fbx  ->  <dir>/proxy/1.fbx  e  <dir>/simproxy/1.fbx
+    Quando existem, o builder so' carrega ("cria um unico file"), em vez
+    de montar a rede de geracao de novo.
+    """
+    out = {}
+    if not geo_path:
+        return out
+    p = str(geo_path).replace("\\", "/")
+    pasta, arq = os.path.dirname(p), os.path.basename(p)
+    for chave in ("proxy", "simproxy"):
+        cam = "%s/%s/%s" % (pasta, chave, arq)
+        if os.path.isfile(cam):
+            out[chave] = cam
+    return out
 
 
 def classify(arquivos):

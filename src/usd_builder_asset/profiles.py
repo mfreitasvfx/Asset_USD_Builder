@@ -40,7 +40,7 @@ class Profile(object):
                  rough_source="roughness", plant_workflow=False,
                  texture_subdirs=(), notes="",
                  proxy=False, simproxy=False, center=False,
-                 unit_scale=0.01, proxy_style="reduce"):
+                 unit_scale=0.01, proxy_style="vdb"):
         # unit_scale DEFAULT 0.01 (decisao do Matheus, 2026-09-12): o
         # pipeline exporta em CENTIMETROS (Max, KitBash, Megascans FBX) e
         # o USD e' metros. O Unit Scale da janela (0 = do perfil) sobrepoe.
@@ -63,8 +63,9 @@ class Profile(object):
         # fonte em cm (KitBash) -> USD em metros. Medido no A/B: sem isso o
         # asset sai 100x maior que o build de referencia do Matheus.
         self.unit_scale = unit_scale
-        # como montar os branches: 'reduce' (polyreduce/hull, kitbash) ou
-        # 'plant' (setup do Matheus p/ plantas -- builder._branches_planta)
+        # como montar o proxy, os tres setups do teste_proxy.hip:
+        #   'plant' lowres_geo 2% (Maxtree) | 'boxes' caixa por peca
+        #   (KitBash) | 'vdb' VDB+remesh+reduce (hard surface, default)
         self.proxy_style = proxy_style
 
     def lods_for(self, asset):
@@ -138,7 +139,9 @@ PERFIS = {
         asset_grain="object",
         rough_source="roughness",
         texture_subdirs=("KB3DTextures", "textures"),
+        # caixa por peca no proxy, como o Matheus montou no Building_01
         proxy=True, simproxy=True, center=True, unit_scale=0.01,
+        proxy_style="boxes",
         notes="um arquivo com dezenas de objetos e um atlas compartilhado",
     ),
 

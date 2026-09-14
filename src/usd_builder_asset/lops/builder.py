@@ -24,6 +24,7 @@ import os
 import hou
 
 from .. import fbx as _fbx
+from .. import library as _lib
 from .. import naming as _naming
 from . import materials as _mats
 
@@ -61,32 +62,71 @@ def _tipo_sop(nome_tipo):
     return hou.sopNodeTypeCategory().nodeType(nome_tipo)
 
 
-def _branches_planta(sop, tail, nome_prim, quer_proxy, quer_sim):
-    """Proxy/simproxy p/ plantas -- COPIA do setup do Matheus.
+# ---------------------------------------------------------------------
+# Proxy/simproxy: os TRES setups que o Matheus montou (teste_proxy.hip,
+# medido em 2026-09-14). O que os tres tem igual:
+#   labs::delete_small_parts abre os ramos, e o proxy fecha em
+#   color (Detail, Random, seed = nprims da entrada) -> attribdelete
+#   asset_name -> add 'Remove Unused Points'.
+# O que muda e' COMO o proxy e' feito:
+#   plant  lowres_geo (HDA dele, 2%) + fuse       -- Maxtree
+#   boxes  caixa por peca (compile + foreach)     -- KitBash
+#   vdb    VDB -> remesh -> polyreduce            -- hard surface
+# ---------------------------------------------------------------------
 
-    Medido do hip dele ('asst builder.hiplc', Zea, 2026-09-12), no e parm:
-      proxy   : delete_small_parts (Labs, 2.39% da maior peca) ->
-                lowres_geo (HDA dele, 2%) -> asset_name na prim ->
-                Color 'Random from Attribute' -> Cd promovido a DETAIL
-                (inclass=1 prim, outclass=0 detail -- medido): UMA cor
-                aleatoria por asset, p/ enxergar o set no GL
-      simproxy: lowres_geo -> assemble -> convexdecomposition
-      cada output (default incluso) fecha com Add 'Remove Unused Points'
+
+def _arruma_no_stage(stage, net):
+    """Cada asset novo em /stage ganha lugar proprio, em grade.
+
+    moveToGoodPosition() nao resolvia: ele posiciona pelas CONEXOES, e os
+    subnets de asset nao se ligam entre si -- num build de lote todos
+    caiam empilhados no mesmo ponto ("os nodes estao bagunçados").
+    Layout do /stage inteiro tambem nao serve: bagunçaria o que o Matheus
+    montou a mao na cena.
     """
-    add1 = sop.createNode("add", "add1")
-    add1.parm("remove").set(1)             # Remove Unused Points (medido)
-    add1.setInput(0, tail)
-    sop.node("default").setInput(0, add1)
+    outros = [n for n in stage.children() if n is not net]
+    if not outros:
+        return
+    pos = [n.position() for n in outros]
+    x0 = min(p[0] for p in pos)
+    y0 = max(p[1] for p in pos)
+    largura, altura, por_linha = 4.0, 3.0, 6
+    for i in range(len(outros) + 1):
+        alvo = hou.Vector2(x0 + (i % por_linha) * largura,
+                           y0 - (i // por_linha) * altura)
+        livre = all(abs(p[0] - alvo[0]) > 0.1 or abs(p[1] - alvo[1]) > 0.1
+                    for p in pos)
+        if livre:
+            net.setPosition(alvo)
+            return
+    net.setPosition(hou.Vector2(x0, y0 - (len(outros) + 1) * altura))
 
-    base = tail
-    if _tipo_sop("labs::delete_small_parts::1.0") is not None:
-        dsp = sop.createNode("labs::delete_small_parts::1.0",
-                             "delete_small_parts1")
-        dsp.setInput(0, base)
-        dsp.parm("mode").set(0)
-        dsp.parm("threshold").set(2.39)
-        base = dsp
 
+def _fecha_proxy(sop, base):
+    """color -> attribdelete -> add: o fim comum dos tres ramos de proxy."""
+    cor = sop.createNode("color", "color2")
+    cor.setInput(0, base)
+    cor.parm("class").set(0)            # Detail: UMA cor por asset
+    cor.parm("colortype").set(2)        # Random
+    # seed = numero de primitivas da entrada (pedido do Matheus): cada
+    # asset tem uma contagem diferente, entao a cor sai diferente sem
+    # depender de hash de nome
+    cor.parm("seed").setExpression('nprims(opinputpath(".", 0))',
+                                   language=hou.exprLanguage.Hscript)
+    cor.parm("rampattribute").set("asset_name")
+
+    adel = sop.createNode("attribdelete", "attribdelete1")
+    adel.setInput(0, cor)
+    adel.parm("primdel").set("asset_name")
+
+    add = sop.createNode("add", "add1")
+    add.parm("remove").set(1)           # Remove Unused Points
+    add.setInput(0, adel)
+    return add
+
+
+def _proxy_plant(sop, base):
+    """Maxtree: o HDA lowres_geo do Matheus a 2% + fuse."""
     if _tipo_sop("lowres_geo::1.1.1") is not None:
         low = sop.createNode("lowres_geo::1.1.1", "lowres_geo1")
     else:
@@ -94,64 +134,164 @@ def _branches_planta(sop, tail, nome_prim, quer_proxy, quer_sim):
         low = sop.createNode("polyreduce::2.0", "lowres_geo1")
     low.parm("percentage").set(2.0)
     low.setInput(0, base)
+    fu = sop.createNode("fuse::2.0", "fuse1")
+    fu.setInput(0, low)
+    fu.parm("tol3d").set(0.0175)
+    return fu
 
-    if quer_proxy:
-        wr = sop.createNode("attribwrangle", "set_color_data")
-        wr.setInput(0, low)
-        wr.parm("class").set(1)
-        wr.parm("snippet").set('s@asset_name = chs("asset_name");')
-        ptg = wr.parmTemplateGroup()
-        ptg.append(hou.StringParmTemplate("asset_name", "Asset Name", 1))
-        wr.setParmTemplateGroup(ptg)
-        wr.parm("asset_name").set("/" + nome_prim)
 
-        cor = sop.createNode("color", "color1")
-        cor.setInput(0, wr)
-        cor.parm("class").set(1)           # Primitive
-        cor.parm("colortype").set(4)       # Random from Attribute
-        cor.parm("seed").set(0.97)
-        cor.parm("rampattribute").set("asset_name")
+def _proxy_boxes(sop, base):
+    """KitBash: uma CAIXA por peca (foreach dentro de compile block)."""
+    con = sop.createNode("connectivity", "connectivity1")
+    con.setInput(0, base)
+    con.parm("connecttype").set(1)      # prim
+    cb = sop.createNode("compile_begin", "compile_begin1")
+    cb.setInput(0, con)
+    cb.parm("blockpath").set("../compile_end1")
+    fb = sop.createNode("block_begin", "foreach_begin1")
+    fb.setInput(0, cb)
+    fb.parm("method").set(1)            # piece
+    fb.parm("blockpath").set("../foreach_end1")
+    bd = sop.createNode("bound", "bound1")
+    bd.setInput(0, fb)
+    bd.parm("createempty").set(0)
+    fe = sop.createNode("block_end", "foreach_end1")
+    fe.setInput(0, bd)
+    fe.parm("itermethod").set(1)        # pieces
+    fe.parm("method").set(1)            # merge
+    fe.parm("class").set(0)             # primitive
+    fe.parm("attrib").setExpression('chs("../connectivity1/attribname")',
+                                    language=hou.exprLanguage.Hscript)
+    fe.parm("blockpath").set("../foreach_begin1")
+    fe.parm("templatepath").set("../foreach_begin1")
+    ce = sop.createNode("compile_end", "compile_end1")
+    ce.setInput(0, fe)
+    fu = sop.createNode("fuse::2.0", "fuse1")
+    fu.setInput(0, ce)
+    fu.parm("tol3d").set(0.02)
+    nm = sop.createNode("normal", "normal1")
+    nm.setInput(0, fu)
+    cl = sop.createNode("clean", "clean1")
+    cl.setInput(0, nm)
+    cl.parm("fixoverlap").set(1)
+    return cl
 
-        # o hash do Color distribui bem entre nomes parecidos (medido:
-        # 01_04/01_05/Building todos diferentes; VEX random_shash COLIDE),
-        # mas devolve RGB arbitrario e metade sai escuro/lamacento
-        # (Building deu quase preto -- o "nao funciona" do Matheus).
-        # Normaliza em HSV: matiz fica, saturacao/brilho ganham piso alto.
-        nc = sop.createNode("attribwrangle", "nice_color")
-        nc.setInput(0, cor)
-        nc.parm("class").set(1)
-        nc.parm("snippet").set(
-            "vector hsv = rgbtohsv(v@Cd);\n"
-            "v@Cd = hsvtorgb(set(hsv.x, fit(hsv.y, 0, 1, 0.55, 0.95),\n"
-            "                    fit(hsv.z, 0, 1, 0.60, 0.95)));")
 
-        promo = sop.createNode("attribpromote", "attribpromote1")
-        promo.setInput(0, nc)
-        promo.parm("inname").set("Cd")
-        promo.parm("inclass").set(1)
-        promo.parm("outclass").set(0)
+def _proxy_vdb(sop, base):
+    """Hard surface: casca de VDB remalhada e reduzida."""
+    v = sop.createNode("vdbfrompolygons", "vdbfrompolygons1")
+    v.setInput(0, base)
+    c = sop.createNode("convertvdb", "convertvdb1")
+    c.setInput(0, v)
+    c.parm("conversion").set(2)         # poly
+    r = sop.createNode("remesh::2.0", "remesh1")
+    r.setInput(0, c)
+    r.parm("targetsize").set(0.1949)
+    p = sop.createNode("polyreduce::2.0", "proxy_reduce")
+    p.setInput(0, r)
+    p.parm("percentage").set(31.53)
+    n = sop.createNode("normal", "normal1")
+    n.setInput(0, p)
+    return n
 
-        adel = sop.createNode("attribdelete", "attribdelete1")
-        adel.setInput(0, promo)
-        adel.parm("primdel").set("asset_name")
 
-        add2 = sop.createNode("add", "add2")
-        add2.parm("remove").set(1)
-        add2.setInput(0, adel)
-        sop.node("proxy").setInput(0, add2)
+def _rop_fbx(sop, entrada, sub, nome_no):
+    """ROP que grava o proxy/simproxy AO LADO do fonte.
 
-    if quer_sim:
-        asm = sop.createNode("assemble", "assemble1")
-        asm.setInput(0, low)
-        cvx = sop.createNode("convexdecomposition", "convexdecomposition1")
-        cvx.setInput(0, asm)
-        adel2 = sop.createNode("attribdelete", "attribdelete2")
-        adel2.setInput(0, cvx)
-        adel2.parm("primdel").set("class")  # convexdecomposition escreve
-        add3 = sop.createNode("add", "add3")
-        add3.parm("remove").set(1)
-        add3.setInput(0, adel2)
-        sop.node("simproxy").setInput(0, add3)
+    O nome sai do proprio fbx_in por expressao ("o ropfbx puxar o mesmo
+    nome do arquivo de file"): <pasta do fonte>/<sub>/<mesmo arquivo>.
+    HScript nao tem basename/dirname (medido), por isso a expressao e'
+    Python. Depois de gravado, o SCAN seguinte acha o arquivo e monta so'
+    um File SOP no lugar desta rede toda.
+    """
+    rop = sop.createNode("rop_fbx", nome_no)
+    rop.setInput(0, entrada)
+    rop.setColor(hou.Color(0.65, 0.4, 0.5))
+    rop.parm("sopoutput").setExpression(
+        'import os\n'
+        'p = hou.node("../fbx_in").evalParm("file")\n'
+        'return os.path.dirname(p) + "/%s/" + os.path.basename(p)' % sub,
+        language=hou.exprLanguage.Python)
+    return rop
+
+
+def _le_pronto(sop, caminho, nome_no, saida):
+    """Um File SOP no lugar da rede: o proxy ja' esta' em disco."""
+    f = sop.createNode("file", nome_no)
+    f.parm("file").set(caminho)
+    f.setColor(hou.Color(0.9, 0.8, 0.55))
+    sop.node(saida).setInput(0, f)
+    return f
+
+
+def _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res):
+    """Monta os ramos proxy/simproxy, ou so' carrega o que ja' existe."""
+    falta_proxy = quer_proxy and "proxy" not in prontos
+    falta_sim = quer_sim and "simproxy" not in prontos
+
+    if quer_proxy and not falta_proxy:
+        _le_pronto(sop, prontos["proxy"], "proxy_file", "proxy")
+        res.avisos.append("proxy lido do disco: %s"
+                          % os.path.basename(prontos["proxy"]))
+    if quer_sim and not falta_sim:
+        _le_pronto(sop, prontos["simproxy"], "simproxy_file", "simproxy")
+        res.avisos.append("simproxy lido do disco: %s"
+                          % os.path.basename(prontos["simproxy"]))
+    if not (falta_proxy or falta_sim):
+        return
+
+    base = tail
+    if _tipo_sop("labs::delete_small_parts::1.0") is not None:
+        dsp = sop.createNode("labs::delete_small_parts::1.0",
+                             "delete_small_parts1")
+        dsp.setInput(0, base)
+        if estilo == "plant":
+            dsp.parm("mode").set(0)            # Perimeter
+            dsp.parm("threshold").set(2.39)
+        else:                                   # Area (default do HDA)
+            dsp.parm("threshold").set(0.2 if estilo == "boxes" else 0.3)
+        base = dsp
+
+    fim_proxy = None
+    if falta_proxy or (falta_sim and estilo == "boxes"):
+        # no setup de kitbash o simproxy sai do MESMO clean1 do proxy
+        if estilo == "plant":
+            fim_proxy = _proxy_plant(sop, base)
+        elif estilo == "boxes":
+            fim_proxy = _proxy_boxes(sop, base)
+        else:
+            fim_proxy = _proxy_vdb(sop, base)
+
+    if falta_proxy:
+        add = _fecha_proxy(sop, fim_proxy)
+        sop.node("proxy").setInput(0, add)
+        _rop_fbx(sop, add, "proxy", "rop_fbx_proxy")
+
+    if falta_sim:
+        if estilo == "vdb":
+            sw = sop.createNode("shrinkwrap::2.0", "simproxy_hull")
+            sw.setInput(0, base)
+            nm = sop.createNode("normal", "normal2")
+            nm.setInput(0, sw)
+            add2 = sop.createNode("add", "add2")
+            add2.parm("remove").set(1)
+            add2.setInput(0, nm)
+            ultimo = add2
+        else:
+            asm = sop.createNode("assemble", "assemble1")
+            asm.setInput(0, fim_proxy if estilo == "boxes" else base)
+            cvx = sop.createNode("convexdecomposition",
+                                 "convexdecomposition1")
+            cvx.setInput(0, asm)
+            adel2 = sop.createNode("attribdelete", "attribdelete2")
+            adel2.setInput(0, cvx)
+            adel2.parm("primdel").set("class")
+            add3 = sop.createNode("add", "add3")
+            add3.parm("remove").set(1)
+            add3.setInput(0, adel2)
+            ultimo = add3
+        sop.node("simproxy").setInput(0, ultimo)
+        _rop_fbx(sop, ultimo, "simproxy", "rop_fbx_simproxy")
 
 
 def build_asset(asset, profile, out_dir=None, asset_name=None,
@@ -159,7 +299,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
                 lod=None, write=True, disp_scale=0.01,
                 geo_path=None, parts=None, variants=None,
                 tex_dir=None, cleanup=False, settings=None, thumb=False,
-                two_sided=False,
+                two_sided=False, force_proxy=False,
                 thumb_cfg=None):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 
@@ -233,7 +373,8 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
         i += 1
         alvo = "%s_%d" % (base_nome, i)
     net = stage.createNode("subnet", alvo)
-    net.moveToGoodPosition()
+    _arruma_no_stage(stage, net)
+    res.nodes["subnet"] = net
     # padrao de cores do Asset_USD_Builder (lido do PythonModule dele):
     # planta verde-oliva, objeto azul, variante laranja; geo amarelo-palha,
     # matlib verde-claro (vermelho sem textura), output verde.
@@ -298,28 +439,13 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
 
     quer_proxy = getattr(profile, "proxy", False)
     quer_sim = getattr(profile, "simproxy", False)
-    if getattr(profile, "proxy_style", "reduce") == "plant" \
-            and (quer_proxy or quer_sim):
-        # setup do Matheus p/ plantas (copiado do hip dele; ver funcao)
-        _branches_planta(sop, tail, _naming.usd_prim_name(nome),
-                         quer_proxy, quer_sim)
-    else:
-        if quer_proxy:
-            # proxy leve p/ GL. O template usa VDB->remesh->polyreduce; aqui
-            # e' polyreduce direto (medido) -- pra hard-surface o resultado
-            # serve e evita dois nos com parms nao medidos.
-            pr = sop.createNode("polyreduce::2.0", "proxy_reduce")
-            pr.setInput(0, tail)
-            pr.parm("percentage").set(6.0)
-            sop.node("proxy").setInput(0, pr)
-
-        if quer_sim:
-            # convex hull p/ os LOPs de fisica (Edit/Drop). O template faz
-            # por peca via foreach; v1 e' um hull do objeto inteiro --
-            # suficiente pra prop de kitbash.
-            sw = sop.createNode("shrinkwrap::2.0", "simproxy_hull")
-            sw.setInput(0, tail)
-            sop.node("simproxy").setInput(0, sw)
+    if quer_proxy or quer_sim:
+        estilo = getattr(profile, "proxy_style", "vdb")
+        estilo = estilo if estilo in ("plant", "boxes", "vdb") else "vdb"
+        # ja' gravados ao lado do fonte? entao so' carrega -- a menos que
+        # o Force esteja ligado ("para caso eu queira fazer um novo")
+        prontos = {} if force_proxy else _lib.proxy_prontos(geo_path)
+        _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res)
     # nos criados por codigo nascem empilhados; arruma como na GUI
     sop.layoutChildren()
     cg.parm("partitionattribs").set("shop_materialpath")
