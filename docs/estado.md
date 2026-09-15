@@ -996,3 +996,55 @@ ranges de primitiva fixos daquele fbx.
    NO' da cadeia (delete_small_parts1) e engolia o parametro com o nome
    -- o ROP saia gravando 'delete_small_parts1.fbx'. Parametro renomeado
    para nome_base.
+
+## Megascans: plantas (3dplant) e objetos (3d) (2026-09-14, cont.)
+
+Pedido: construir plantas e objetos do Megascans como ja' se constroi o
+resto, com os quatro renderizadores. Medido antes de mexer:
+
+BUG CENTRAL -- .abc: o File SOP le Alembic PACKADO (1 prim AlembicRef, sem
+name e sem shop_materialpath). Sem 'name' o componentgeometry autora
+/ASSET/mesh_0,1,2 como IRMAOS de /ASSET/geo, e binding no USD so' desce
+pela subarvore: o bind ficava em /geo e as malhas saiam com
+ComputeBoundMaterial = NENHUM -> cinza nos quatro renderizadores. E
+parts_bound MENTIA ('wmfiaaldw' listado como ligado). Metade da biblioteca
+3d do Megascans (82 pastas) so' tem .abc, e nas plantas o .abc ainda ganha
+do .fbx por peso. Conserto: um `unpack` depois do File SOP quando a
+geometria e' .abc. Depois: /ASSET/geo/shape + GeomSubset, material
+efetivo em todas as malhas.
+
+PLANTAS -- as 12 variacoes: uma fern tem 12 Var x 5 LOD x 2 formatos = 120
+arquivos, e asset.geometry e' um dict lod->caminho (5 slots): 11 plantas
+iam pro lixo caladas. Agora library.variacoes() devolve {Var: {lod:
+caminho}}, a janela entra em modo 'variacoes' e lista Var1..Var12; cada
+uma vira um asset <pasta>_<Var>, com nome_asset (que NAO liga o blast de
+extracao -- o arquivo da Var ja' tem so' aquela planta).
+
+MATERIAIS FANTASMA no Megascans: o scan da fern devolvia 3 partes --
+'vmkpdbeia' (o Atlas, certo), 'Billboard' e 'vmkpdbeia_convert'. A
+segunda vem de Textures/Billboard, que so' serve para o cartao do ultimo
+LOD (medido: LOD4 tem bbox Z=0.0000 e 5 prims, e o UV e' o enquadramento
+1:1 de uma foto); o HDA do Carlo tambem descarta. A terceira vem de
+'vmkpdbeia_4K_Albedo_convert.jpg', sobra do nosso proprio pipeline.
+Agora: 'billboard' em _IGNORAR e _CONVERT_RE derruba _convert/_raw/
+_acescg/_srgbtex. A fern passou de 3 partes para 1, sem aviso perdido.
+
+CONFERIDO (H21, karma+renderman+vray no mesmo material):
+  fern Var1 (.abc)      1 malha, material efetivo, 0.492 x 0.217 x 0.500 m
+                        -- bate com as Dimensions do vmkpdbeia.json
+  building LOD2 (.abc)  1 malha, material efetivo, 4.000 x 4.250 x 1.977 m
+  terminais nos dois: outputs:surface + kma:surface + kma:displacement +
+  ri:surface + ri:displacement + vray:surface
+  janela: SCAN lista as 12 variacoes, BUILD monta 3dplant_fern_..._Var1
+
+ARNOLD: nao entra porque o packages/htoa.json esta em
+Documents/houdini21.0/packages/bkp/htoa.json (movido em 10/09 11:35, o
+mesmo que tinha acontecido com o vray_for_houdini_21.0.json). O
+HTOA_ROOT que ele aponta existe e funciona -- medido: com esse caminho no
+HOUDINI_PATH o arnold_materialbuilder carrega e o builder monta o ramo
+Arnold sem erro. Nao mexi nos packages.
+
+Diferencas conscientes em relacao ao HDA do Carlo: ele faz 1 USD por
+asset com variantSet 'geo' contendo todas as Var (nos: 1 USD por Var,
+que e' o fluxo de lista da janela) e monta UM renderizador por build
+(nos: os quatro no mesmo material, que e' o pedido).

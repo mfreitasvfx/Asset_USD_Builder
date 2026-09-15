@@ -53,6 +53,11 @@ _FMT_RE = re.compile(r"_(?:png|jpe?g|tga|tiff?|exr|bmp)$", re.I)
 # -- o material do FBX se chama 'vh_cp_glass car'; sem tirar _Bake1_PBR a
 # parte nao casa com o subset
 _BAKE_RE = re.compile(r"_bake\d+(?:_pbr)?$", re.I)
+# sobra do NOSSO proprio pipeline em cima da biblioteca Megascans:
+# 'vmkpdbeia_4K_Albedo_convert.jpg' virava a parte fantasma
+# 'vmkpdbeia_convert', com um basecolor so' e sem aviso nenhum.
+# (.tex/.tx ja' caem fora porque a extensao nao esta em _IMG_EXT)
+_CONVERT_RE = re.compile(r"_(?:convert|raw|acescg|srgbtex)$", re.I)
 _GEO_EXT = (".fbx", ".abc", ".obj", ".bgeo", ".usd", ".usdc", ".usda")
 _IMG_EXT = (".jpg", ".jpeg", ".png", ".exr", ".tif", ".tiff", ".tga")
 
@@ -67,7 +72,12 @@ _IGNORAR = {"backup", "previews", "thumbs", "thumbnails", "render", "out",
             # saida do nosso proprio rop_fbx: sao o proxy do asset, nao
             # assets novos -- sem isso o SCAN listava 'simproxy/1.fbx' e o
             # build montava um asset chamado 'convexdecomposition2'
-            "proxy", "simproxy"}
+            "proxy", "simproxy",
+            # Megascans 3dplant: Textures/Billboard so' serve para o cartao
+            # do ultimo LOD (medido: LOD4 tem bbox Z=0 e 5 prims). O HDA do
+            # Carlo tambem descarta. Sem isso vira um material orfao, porque
+            # a geometria toda diz 'lambert1'.
+            "billboard"}
 
 # Quando o mesmo papel/geometria aparece em dois formatos -- o Megascans
 # entrega Displacement em .exr E .jpg, o KitBash da' .fbx E .obj -- ficar com
@@ -100,6 +110,7 @@ class Asset(object):
         self.built = False        # ja e' saida do Component Builder
         self.geometry = {}        # lod -> caminho
         self.geo_files = []       # TODOS os arquivos de geometria achados
+        self.variations = {}      # Var1..VarN (Megascans 3dplant) -> {lod: caminho}
         self.parts = {}           # parte -> {papel: caminho}
         self.preview = None
         self.meta = {}
@@ -217,6 +228,8 @@ def _coleta_imagem(a, nome, cheio, avisar=True):
     if naming.is_preview(nome):
         a.preview = a.preview or cheio
         return
+    if _CONVERT_RE.search(os.path.splitext(nome)[0]):
+        return              # copia convertida, nao e' entrega da biblioteca
     papel = naming.texture_role(nome)
     if papel is None:
         if avisar:
@@ -340,6 +353,7 @@ def scan(root, tex_dir=None):
 
     a.geometry = geo_por_lod
     a.geo_files.sort(key=natural_key)
+    a.variations = variacoes(a.geo_files)
     a.plant = naming.looks_like_plant([n for n, _c in arquivos])
     a.library = classify([n for n, _c in arquivos])
 
@@ -409,6 +423,36 @@ def atlas_variants(asset):
         if mapas:
             out.append((v, {nome: mapas}))
     return out or None
+
+
+_VAR_RE = re.compile(r"^(Var[A-Za-z0-9]+)_((?:LOD\d+|High))$", re.I)
+
+
+def variacoes(geo_files):
+    """Var1..VarN do Megascans 3dplant -> {Var: {lod: caminho}}.
+
+    Uma fern tem 12 variacoes x 5 LODs x 2 formatos = 120 arquivos, e
+    asset.geometry so' guarda um por LOD -- 11 plantas iam pro lixo sem
+    ninguem avisar (medido no 3dplant_fern_vmkpdbeia).
+    """
+    out = {}
+    for c in geo_files:
+        nome = os.path.splitext(os.path.basename(str(c)))[0]
+        m = _VAR_RE.match(nome)
+        if not m:
+            continue
+        var, lod = m.group(1), m.group(2)
+        atual = out.setdefault(var, {}).get(lod)
+        if atual is None or _PESO_GEO.get(_ext(c), 0) >                 _PESO_GEO.get(_ext(atual), 0):
+            out[var][lod] = str(c).replace("\\", "/")
+    return out
+
+
+def melhor_lod(lods):
+    """O LOD de render de uma variacao: High, senao LOD0..."""
+    if not lods:
+        return None
+    return lods[sorted(lods, key=_lod_key)[0]]
 
 
 def proxy_prontos(geo_path, base=None):

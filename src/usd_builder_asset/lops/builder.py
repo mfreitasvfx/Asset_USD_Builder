@@ -310,6 +310,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
                 geo_path=None, parts=None, variants=None,
                 tex_dir=None, cleanup=False, settings=None, thumb=False,
                 two_sided=False, force_proxy=False, proxy_base=None,
+                nome_asset=None,
                 thumb_cfg=None):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 
@@ -342,7 +343,10 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     -- na UI o GL gera na hora do export, sem render externo.
     """
     res = Result()
-    nome = asset_name or asset.name
+    # nome_asset batiza o componente SEM ligar o blast de extracao: e' o
+    # caso das variacoes Megascans (Var1..VarN), em que cada arquivo ja'
+    # contem so' aquela planta
+    nome = nome_asset or asset_name or asset.name
     res.asset_name = nome
     partes_asset = parts if parts is not None else asset.parts
 
@@ -400,6 +404,18 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     sop = cg.node("sopnet/geo")
     fnode = _fbx.load_sop(sop, geo_path)
     tail = fnode
+
+    if str(geo_path).lower().endswith(".abc"):
+        # o File SOP le Alembic PACKADO: a saida e' 1 prim AlembicRef sem
+        # atributo nenhum (nem name, nem shop_materialpath). Sem 'name' o
+        # componentgeometry autora /ASSET/mesh_0,1,2 IRMAOS de /ASSET/geo,
+        # e bind no USD so' desce pela subarvore -- o asset saia cinza nos
+        # quatro renderizadores. Medido no 3d_building_wmfiaaldw: com o
+        # unpack vira /ASSET/geo/shape + GeomSubset, e o bind resolve.
+        # Metade da biblioteca 3d do Megascans so' tem .abc.
+        up = sop.createNode("unpack", "unpack_abc")
+        up.setInput(0, fnode)
+        tail = up
 
     if asset_name is not None:
         # so' as prims deste objeto (KitBash: varios assets no arquivo)

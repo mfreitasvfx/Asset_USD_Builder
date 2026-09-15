@@ -553,6 +553,15 @@ class Panel(QtWidgets.QWidget):
                       "Select and 2 — BUILD ASSETS."
                       % (self.lista.count(), nome_m,
                          ", ".join(sorted(mapas_m)) or "sem mapas"))
+        elif len(getattr(self._asset, "variations", {})) > 1:
+            # Megascans 3dplant: 12 Var x 5 LOD num pacote so'. Cada Var e'
+            # uma planta diferente -- sem isso 11 delas se perdiam, porque
+            # asset.geometry guarda um arquivo por LOD.
+            self._modo = "variacoes"
+            for v in sorted(self._asset.variations, key=library.natural_key):
+                self.lista.addItem(v)
+            self._diz("✓ %d variations (Megascans). Select and "
+                      "2 — BUILD ASSETS." % self.lista.count())
         elif self._profile.asset_grain == "object":
             self._modo = "objetos"
             self._diz("reading objects from file…")
@@ -654,7 +663,21 @@ class Panel(QtWidgets.QWidget):
                               % (nome_arq, len(tops)))
                 for top in tops:
                     alvos.append((f, top, partes_f,
-                                  top if len(tops) > 1 else None))
+                                  top if len(tops) > 1 else None,
+                                  None))
+        elif self._modo == "variacoes":
+            perfil = profiles.custom(base_key, **over)
+            sel = [i.text() for i in self.lista.selectedItems()]
+            if not sel:
+                self._diz("select at least one variation from the list.")
+                return
+            alvos = []
+            for v in sel:
+                geo_v = library.melhor_lod(self._asset.variations[v])
+                # nome do componente sem ligar o blast: o arquivo da Var ja'
+                # tem so' aquela planta
+                alvos.append((geo_v, None, None, None,
+                              "%s_%s" % (self._asset.name, v)))
         elif self._modo == "objetos":
             perfil = profiles.custom(base_key, **over)
             sel = [i.text() for i in self.lista.selectedItems()]
@@ -662,11 +685,11 @@ class Panel(QtWidgets.QWidget):
                 self._diz("select at least one object from the list.")
                 return
             varios = self.lista.count() > 1
-            alvos = [(None, nome, None, nome if varios else None)
-                     for nome in sel]
+            alvos = [(None, nome, None, nome if varios else None,
+                      None) for nome in sel]
         else:
             perfil = profiles.custom(base_key, **over)
-            alvos = [(None, None, None, None)]
+            alvos = [(None, None, None, None, None)]
 
         self._builds = []
         t = log.Tempo()
@@ -674,7 +697,8 @@ class Panel(QtWidgets.QWidget):
                   + "-" * 10)
         with hou.InterruptableOperation("USD_Builder_Asset build",
                                         open_interrupt_dialog=True) as op:
-            for i, (geo, alvo, partes, pbase) in enumerate(alvos):
+            for i, (geo, alvo, partes, pbase, nome_a) in enumerate(
+                    alvos):
                 op.updateProgress(float(i) / max(1, len(alvos)))
                 try:
                     res = builder.build_asset(
@@ -685,7 +709,7 @@ class Panel(QtWidgets.QWidget):
                         settings=settings, thumb_cfg=thumb_cfg,
                         two_sided=self.ckTwoSided.isChecked(),
                         force_proxy=self.ckForce.isChecked(),
-                        proxy_base=pbase)
+                        proxy_base=pbase, nome_asset=nome_a)
                     self._builds.append(res)
                     self._diz("✓ Building Asset SubNet: %s ........... %d/%d"
                               % (res.asset_name, i + 1, len(alvos)))
