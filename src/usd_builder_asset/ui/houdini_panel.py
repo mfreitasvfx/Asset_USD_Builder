@@ -284,6 +284,19 @@ class Panel(QtWidgets.QWidget):
         wrapP.setLayout(hbP)
         fS.addRow("Branches", wrapP)
 
+        # qual setup de proxy montar (os tres do teste_proxy.hip), na ordem
+        # que o Matheus pediu. O SCAN preenche com o do perfil e o que
+        # estiver aqui e' o que manda -- mesmo esquema do Unit Scale.
+        self.cbProxy = QtWidgets.QComboBox()
+        for chave, rotulo in (("lowres", "lowres (lowres_geo 2%)"),
+                              ("vdb", "vdb (remesh + reduce)"),
+                              ("bounds", "bounds (caixa por peca)")):
+            self.cbProxy.addItem(rotulo, chave)
+        self.cbProxy.setToolTip(
+            "Como montar o branch de proxy. Os tres gravam com rop_fbx ao "
+            "lado do fbx e, no build seguinte, entram como um File so'")
+        fS.addRow("Proxy setup", self.cbProxy)
+
         # a escala vem diferente por biblioteca (KitBash em cm = 0.01,
         # Maxtree ja em metros = 1); 0 = usa a do perfil
         self.spUnit = spin(0.01)
@@ -536,6 +549,11 @@ class Panel(QtWidgets.QWidget):
         self.ckProxy.setChecked(bool(getattr(self._profile, "proxy", False)))
         self.ckSimproxy.setChecked(
             bool(getattr(self._profile, "simproxy", False)))
+        # o Proxy setup tambem sai do perfil e fica A VISTA; o que ficar no
+        # combo e' o que o BUILD monta
+        i = self.cbProxy.findData(getattr(self._profile, "proxy_style", "vdb"))
+        if i >= 0:
+            self.cbProxy.setCurrentIndex(i)
         self.lbResumo.setText(self._asset.resumo().replace("   ", "  "))
         self._diz(self._asset.resumo())
         for a in avisos:
@@ -615,7 +633,8 @@ class Panel(QtWidgets.QWidget):
                     "subsurface": self.spSss.value(),
                     "tex_renderman": self.ckTexRman.isChecked()}
         over = {"proxy": self.ckProxy.isChecked(),
-                "simproxy": self.ckSimproxy.isChecked()}
+                "simproxy": self.ckSimproxy.isChecked(),
+                "proxy_style": self.cbProxy.currentData()}
         # o campo da janela manda no convert_units, sempre (padrao 0.01;
         # o BigMediumSmall ja' vem em metros e ali o Matheus poe 1)
         over["unit_scale"] = self.spUnit.value()

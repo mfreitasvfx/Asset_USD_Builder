@@ -69,9 +69,9 @@ def _tipo_sop(nome_tipo):
 #   color (Detail, Random, seed = nprims da entrada) -> attribdelete
 #   asset_name -> add 'Remove Unused Points'.
 # O que muda e' COMO o proxy e' feito:
-#   plant  lowres_geo (HDA dele, 2%) + fuse       -- Maxtree
-#   boxes  caixa por peca (compile + foreach)     -- KitBash
-#   vdb    VDB -> remesh -> polyreduce            -- hard surface
+#   lowres  lowres_geo (HDA dele, 2%) + fuse      -- Maxtree
+#   vdb     VDB -> remesh -> polyreduce           -- hard surface
+#   bounds  caixa por peca (compile + foreach)    -- KitBash
 # ---------------------------------------------------------------------
 
 
@@ -125,7 +125,7 @@ def _fecha_proxy(sop, base):
     return add
 
 
-def _proxy_plant(sop, base):
+def _proxy_lowres(sop, base):
     """Maxtree: o HDA lowres_geo do Matheus a 2% + fuse."""
     if _tipo_sop("lowres_geo::1.1.1") is not None:
         low = sop.createNode("lowres_geo::1.1.1", "lowres_geo1")
@@ -140,7 +140,7 @@ def _proxy_plant(sop, base):
     return fu
 
 
-def _proxy_boxes(sop, base):
+def _proxy_bounds(sop, base):
     """KitBash: uma CAIXA por peca (foreach dentro de compile block)."""
     con = sop.createNode("connectivity", "connectivity1")
     con.setInput(0, base)
@@ -254,20 +254,20 @@ def _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res,
         dsp = sop.createNode("labs::delete_small_parts::1.0",
                              "delete_small_parts1")
         dsp.setInput(0, base)
-        if estilo == "plant":
+        if estilo == "lowres":
             dsp.parm("mode").set(0)            # Perimeter
             dsp.parm("threshold").set(2.39)
         else:                                   # Area (default do HDA)
-            dsp.parm("threshold").set(0.2 if estilo == "boxes" else 0.3)
+            dsp.parm("threshold").set(0.2 if estilo == "bounds" else 0.3)
         base = dsp
 
     fim_proxy = None
-    if falta_proxy or (falta_sim and estilo == "boxes"):
+    if falta_proxy or (falta_sim and estilo == "bounds"):
         # no setup de kitbash o simproxy sai do MESMO clean1 do proxy
-        if estilo == "plant":
-            fim_proxy = _proxy_plant(sop, base)
-        elif estilo == "boxes":
-            fim_proxy = _proxy_boxes(sop, base)
+        if estilo == "lowres":
+            fim_proxy = _proxy_lowres(sop, base)
+        elif estilo == "bounds":
+            fim_proxy = _proxy_bounds(sop, base)
         else:
             fim_proxy = _proxy_vdb(sop, base)
 
@@ -288,7 +288,7 @@ def _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res,
             ultimo = add2
         else:
             asm = sop.createNode("assemble", "assemble1")
-            asm.setInput(0, fim_proxy if estilo == "boxes" else base)
+            asm.setInput(0, fim_proxy if estilo == "bounds" else base)
             cvx = sop.createNode("convexdecomposition",
                                  "convexdecomposition1")
             cvx.setInput(0, asm)
@@ -467,7 +467,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     quer_sim = getattr(profile, "simproxy", False)
     if quer_proxy or quer_sim:
         estilo = getattr(profile, "proxy_style", "vdb")
-        estilo = estilo if estilo in ("plant", "boxes", "vdb") else "vdb"
+        estilo = estilo if estilo in ("lowres", "vdb", "bounds") else "vdb"
         # ja' gravados ao lado do fonte? entao so' carrega -- a menos que
         # o Force esteja ligado ("para caso eu queira fazer um novo")
         prontos = ({} if force_proxy

@@ -1048,3 +1048,23 @@ Diferencas conscientes em relacao ao HDA do Carlo: ele faz 1 USD por
 asset com variantSet 'geo' contendo todas as Var (nos: 1 USD por Var,
 que e' o fluxo de lista da janela) e monta UM renderizador por build
 (nos: os quatro no mesmo material, que e' o pedido).
+
+## Proxy setup escolhido na janela (2026-09-14, cont.)
+
+Pedido: "embaixo do proxy cria opcoes para caso eu decida qual setup de
+proxy criar lowres, vdb e bounds, que seria essa ordem. todos no mesmo
+esquema de rop fbx e import".
+
+  - Combo "Proxy setup" na aba SETTINGS, logo abaixo de Branches, com os
+    tres na ordem pedida: lowres (lowres_geo 2%), vdb (remesh + reduce),
+    bounds (caixa por peca).
+  - Os estilos passaram a se chamar assim no codigo tambem (eram 'plant'
+    e 'boxes'): perfil maxtree = lowres, kitbash = bounds, resto = vdb.
+  - O SCAN marca no combo o estilo do perfil e o que ficar la' e' o que o
+    BUILD monta -- mesmo esquema que ele pediu para o Unit Scale (o campo
+    mostra o valor e o campo manda).
+  - Os tres ja' tinham, e continuam com, o par rop_fbx (grava
+    <dir>/proxy e /simproxy com o nome do arquivo ou do asset) + File SOP
+    quando o arquivo ja' existe. Conferido pela janela nos tres:
+      lowres 20 nos, vdb 22, bounds 27, todos com rop_fbx_proxy e
+      rop_fbx_simproxy.

@@ -63,9 +63,10 @@ class Profile(object):
         # fonte em cm (KitBash) -> USD em metros. Medido no A/B: sem isso o
         # asset sai 100x maior que o build de referencia do Matheus.
         self.unit_scale = unit_scale
-        # como montar o proxy, os tres setups do teste_proxy.hip:
-        #   'plant' lowres_geo 2% (Maxtree) | 'boxes' caixa por peca
-        #   (KitBash) | 'vdb' VDB+remesh+reduce (hard surface, default)
+        # como montar o proxy, os tres setups do teste_proxy.hip, na
+        # ordem em que o Matheus os lista na janela:
+        #   'lowres' lowres_geo 2% (Maxtree) | 'vdb' VDB+remesh+reduce
+        #   (hard surface, default) | 'bounds' caixa por peca (KitBash)
         self.proxy_style = proxy_style
 
     def lods_for(self, asset):
@@ -124,7 +125,7 @@ PERFIS = {
         plant_workflow=True,
         # acrescimo de exports pedido pelo Matheus (2026-09-12): proxy com
         # cor aleatoria por asset + simproxy convexo, copiados do hip dele
-        proxy=True, simproxy=True, proxy_style="plant",
+        proxy=True, simproxy=True, proxy_style="lowres",
         notes="uma planta = uma pasta com ~12 materiais; sem LOD no pacote",
     ),
 
@@ -141,7 +142,7 @@ PERFIS = {
         texture_subdirs=("KB3DTextures", "textures"),
         # caixa por peca no proxy, como o Matheus montou no Building_01
         proxy=True, simproxy=True, center=True, unit_scale=0.01,
-        proxy_style="boxes",
+        proxy_style="bounds",
         notes="um arquivo com dezenas de objetos e um atlas compartilhado",
     ),
 
