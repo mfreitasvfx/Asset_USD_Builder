@@ -65,11 +65,20 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
                     w=None, settings=None):
     from .materials import _cfg
     s = _cfg(settings)
-    sub = ctx_subnet(parent, "renderman_" + name, "ri")
-    out = sub.node("suboutput1")
+    # RenderMan Material Builder, nao subnet generico: o builder tem render
+    # mask 'RIB' (medido) e e' isso que faz o TAB listar os nos Pxr* --
+    # no subnet generico (mask vazia) o Matheus nao conseguia criar no'
+    # nenhum a mao. Por dentro vem um output_collect: surface no input 0,
+    # displacement no 1, e o builder expoe 'surface'/'displacement' para
+    # o collect externo. O preview_surface automatico dele NAO toma o
+    # outputs:surface do nosso preview (medido nas duas ordens).
+    sub = parent.createNode("pxrmaterialbuilder", "renderman_" + name)
+    out = sub.node("output_collect")
     surf = sub.createNode("pxrsurface", "surface")
     out.setInput(0, surf, 0)
-    w.set(out, "name1", "surface")
+    # frente/verso SEMPRE (pedido do Matheus: todo setup RenderMan)
+    w.set(surf, "diffuseDoubleSided", 1)
+    w.set(surf, "specularDoubleSided", 1)
 
     def image(role, path, cor):
         if s.get("tex_renderman"):
@@ -111,19 +120,18 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
 
     # metallic via PxrMetallicWorkflow (achado do Matheus: e' assim que o
     # material builder liga metal no PxrSurface)
-    mw = None
+    # SEMPRE via PxrMetallicWorkflow (pedido do Matheus): sem mapa de
+    # metalness o metallic fica no default 0 e o workflow so' passa o
+    # basecolor -- mas o no' ja' esta' la' para ele ligar o que quiser
+    mw = sub.createNode("pxrmetallicworkflow::3.0", "metallic_workflow")
+    if base is not None:
+        w.connect(mw, "baseColor", base, "resultRGB")
     if "metalness" in maps:
         mimg = image("metalness", maps["metalness"], False)
-        mrm = remap("metalness", mimg)
-        mw = sub.createNode("pxrmetallicworkflow::3.0", "metallic_workflow")
-        if base is not None:
-            w.connect(mw, "baseColor", base, "resultRGB")
-        w.connect(mw, "metallic", mrm, "resultR")
-        w.connect(surf, "diffuseColor", mw, "resultDiffuseRGB")
-        w.connect(surf, "specularEdgeColor", mw, "resultSpecularEdgeRGB")
-        w.connect(surf, "specularFaceColor", mw, "resultSpecularFaceRGB")
-    elif base is not None:
-        w.connect(surf, "diffuseColor", base, "resultRGB")
+        w.connect(mw, "metallic", remap("metalness", mimg), "resultR")
+    w.connect(surf, "diffuseColor", mw, "resultDiffuseRGB")
+    w.connect(surf, "specularEdgeColor", mw, "resultSpecularEdgeRGB")
+    w.connect(surf, "specularFaceColor", mw, "resultSpecularFaceRGB")
 
     if "roughness" in maps:
         img = image("roughness", maps["roughness"], False)
@@ -139,11 +147,7 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
 
     if "specular" in maps:
         img = image("specular", maps["specular"], True)
-        if mw is not None:
-            w.connect(mw, "specular", cc("specular", img), "resultRGB")
-        else:
-            w.connect(surf, "specularEdgeColor",
-                      cc("specular", img), "resultRGB")
+        w.connect(mw, "specular", cc("specular", img), "resultRGB")
 
     if "opacity" in maps:
         img = image("opacity", maps["opacity"], False)
@@ -172,14 +176,12 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
         w.set(dp, "dispAmount", disp_scale)
         w.connect(dp, "dispScalar", dt, "resultF")
         out.setInput(1, dp, 0)
-        w.set(out, "name2", "displacement")
 
     from .materials import eh_folha
     if plant and ("translucency" in maps or eh_folha(name)):
         # folha sem mapa de translucency entra pelo NOME (Maxtree nao
         # entrega p/ todas): transmit ganha o gain, cor fica default
         w.set(surf, "diffuseTransmitGain", s["subsurface"])
-        w.set(surf, "diffuseDoubleSided", 1)
         if "translucency" in maps:
             img = image("translucency", maps["translucency"], True)
             w.connect(surf, "diffuseTransmitColor",
@@ -191,8 +193,6 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
         # diffuseBackColor). Verso ESPELHADO (mesmo arquivo da frente)
         # usa a propria cor -- sem segunda leitura de textura; verso
         # REAL (_Back) entra em diffuseBackColor.
-        w.set(surf, "diffuseDoubleSided", 1)
-        w.set(surf, "specularDoubleSided", 1)
         if maps["back_basecolor"] == maps.get("basecolor"):
             w.set(surf, "diffuseBackUseDiffuseColor", 1)
         else:

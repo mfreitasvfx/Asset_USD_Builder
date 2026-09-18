@@ -1068,3 +1068,38 @@ esquema de rop fbx e import".
     quando o arquivo ja' existe. Conferido pela janela nos tres:
       lowres 20 nos, vdb 22, bounds 27, todos com rop_fbx_proxy e
       rop_fbx_simproxy.
+
+## RenderMan no Material Builder oficial (2026-09-18)
+
+"criei um megascan com renderman mas ele nao esta no subnet do renderman;
+existe vantagem ou desvantagem? porque eu nao consigo criar os nodes por
+mim mesmo" + "coloca ele em metallic_workflow" + "garante que todos os
+setup de renderman tenham double sided".
+
+MEDIDO: o TAB do Houdini filtra os VOPs pelo render mask do container.
+pxrsurface e pxrmaterialbuilder tem mask 'RIB'; o subnet generico da
+ferramenta (ctx_subnet com rendercontext 'ri') tem mask VAZIA -- por isso
+dentro dele o TAB nao lista Pxr* nenhum e ele nao conseguia criar no' a
+mao. Era essa a desvantagem; no USD os terminais saiam iguais.
+
+O QUE MUDOU em mat_extra.build_renderman:
+  - container = pxrmaterialbuilder (RenderMan Material Builder). Por
+    dentro vem um output_collect: pxrsurface no input 0, pxrdisplace no
+    input 1; o builder expoe 'surface'/'displacement' e o collect
+    externo da ferramenta liga os dois como antes. O preview_surface
+    automatico do builder NAO toma o outputs:surface do nosso
+    preview_<parte>: medido nas duas ordens no collect, outputs:surface
+    fica com o usdpreviewsurface nosso.
+  - PxrMetallicWorkflow SEMPRE: basecolor_cc -> baseColor; metalness
+    (quando existe) -> metallic, senao fica no default 0; diffuse/
+    specularEdge/specularFace do PxrSurface vem do workflow. Specular map
+    entra no workflow tambem.
+  - diffuseDoubleSided=1 e specularDoubleSided=1 em TODO PxrSurface, nao
+    so' nas folhas/back (esses continuam ligando transmit / backcolor).
+
+CONFERIDO no H21 (renderman+karma): Megascans building sem metalness e
+Zea 12 materiais -- todos pxrmaterialbuilder, dds=sds=1, metallic_workflow
+presente e alimentando o diffuseColor; USD com ri:surface,
+ri:displacement (quando ha' height), kma:* e outputs:surface do preview.
+presets.py identifica o builder pelo NOME (renderman_*), entao os presets
+salvos continuam valendo.
