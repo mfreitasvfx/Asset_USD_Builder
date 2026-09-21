@@ -297,13 +297,21 @@ def parts_for_file(asset, geo_path):
     (Post Apocalypse).
     """
     fbm = os.path.splitext(str(geo_path).replace("\\", "/"))[0] + ".fbm"
-    if not os.path.isdir(fbm):
-        return None
-    b = Asset(fbm)
-    for nome, cheio in _arquivos(fbm, profundidade=1):
-        if nome.lower().endswith(_IMG_EXT):
-            _coleta_imagem(b, nome, cheio, avisar=False)
-    return b.parts or None
+    if os.path.isdir(fbm):
+        b = Asset(fbm)
+        for nome, cheio in _arquivos(fbm, profundidade=1):
+            if nome.lower().endswith(_IMG_EXT):
+                _coleta_imagem(b, nome, cheio, avisar=False)
+        if b.parts:
+            return b.parts
+    # Maxtree em pasta de varios fbx (Vol 148): as partes de cada planta
+    # levam o nome do arquivo como prefixo (MT_PM_V148_Acrocomia_aculeata_01
+    # -> ..._Leaf_01, ..._Trunk_01). Sem isso o build caia no atlas do set e
+    # a palmeira saia com o material da Brahea (o primeiro da lista).
+    stem = os.path.splitext(os.path.basename(str(geo_path)))[0].lower()
+    proprias = {k: v for k, v in asset.parts.items()
+                if k.lower().startswith(stem + "_")}
+    return proprias or None
 
 
 def scan(root, tex_dir=None):

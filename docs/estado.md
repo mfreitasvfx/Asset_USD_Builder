@@ -1139,3 +1139,15 @@ CONFERIDO: Acrocomia -> variantSets ['geo','mtl'], 6 variantes, alturas
 variantes inalterado (6 bound). Build de 23 s sem branches (1.9M prims).
 Proxy pronto em disco por asset (proxy_base) nao se aplica no modo de
 variantes -- as copias apontam para o mesmo arquivo.
+
+## Multi-fbx Maxtree: partes do PROPRIO arquivo, nao o atlas (2026-09-21)
+
+"nao montou o render certo: geometria Acrocomia, material
+renderman_MT_PM_V148_Brahea_moorei_01_Leaf_01". No modo multi-FBX sem
+.fbm o build caia em atlas_material(), que e' a regra do Post Apocalypse
+(um atlas para todos os arquivos) -- no Vol 148 isso entregava a
+primeira planta da lista (Brahea) para todas. parts_for_file agora, sem
+.fbm, filtra asset.parts pelo prefixo do nome do arquivo
+(MT_PM_V148_Acrocomia_aculeata_01 -> ..._Leaf_01, ..._Trunk_01): 9 partes
+proprias; Post Apocalypse continua None -> atlas. Conferido pela janela:
+'6 assets, 9 own texture parts', nenhum Brahea na matlib.
