@@ -1103,3 +1103,39 @@ presente e alimentando o diffuseColor; USD com ri:surface,
 ri:displacement (quando ha' height), kma:* e outputs:surface do preview.
 presets.py identifica o builder pelo NOME (renderman_*), entao os presets
 salvos continuam valendo.
+
+## Variantes de geometria: um USD por arquivo com Var por objeto (2026-09-21)
+
+Pedido: o Maxtree Vol 148 traz VARIAS palmeiras num fbx
+(MT_PM_V148_Acrocomia_aculeata_01.fbx = 6 objetos) e o Matheus quer o
+setup do Component Builder (Flower Perenial): N componentgeometry ->
+componentgeometryvariants -> componentmaterial -> componentoutput, um USD
+so' com variantSet 'geo'.
+
+MEDIDO no fbx: 6 objetos por `name`; o `MaxHandle` que ele sugeriu
+particiona igual (1:1), mas o name da' o nome legivel da variante, entao
+o corte continua por name. 1.9M prims, cm (5381 un -> 0.01), 8 materiais
+compartilhados. geovariantname do componentgeometry = `$OS`: a variante
+chama-se como o no'.
+
+IMPLEMENTADO (build_asset(geo_variants=[...])):
+  - o primeiro objeto e' o componentgeometry normal; os outros sao
+    hou.copyNodesTo do mesmo (branches/unit/center iguais) com o blast
+    keep_* apontando para o objeto da vez; todos entram num
+    componentgeometryvariants 'variants'.
+  - BIND: um componentmaterial POR variante, ANTES do variants. Medido
+    primeiro com um so' depois: ele autora caminhos concretos da
+    variante ativa no export e as outras 5 saiam sem material (0/6). Com
+    assign_1..6 antes do variants, 6/6 subsets com material em todas.
+    Cada assign liga TODAS as partes com textura (Leaf_02 existe na
+    palmeira 03 e nao na 01); padrao que nao casa e' inofensivo.
+  - Janela: checkbox "Geo variants (one asset per file)" na aba SETTINGS,
+    default OFF. No modo multi-FBX, ligado, cada arquivo com mais de um
+    objeto vira UM asset (nome do arquivo) com as variantes; desligado
+    continua um asset por objeto (6 builds, como antes).
+
+CONFERIDO: Acrocomia -> variantSets ['geo','mtl'], 6 variantes, alturas
+7.46..15.93 m, 6/6 (ou 5/5) subsets com material em cada uma; Zea sem
+variantes inalterado (6 bound). Build de 23 s sem branches (1.9M prims).
+Proxy pronto em disco por asset (proxy_base) nao se aplica no modo de
+variantes -- as copias apontam para o mesmo arquivo.

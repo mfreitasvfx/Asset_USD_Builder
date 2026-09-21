@@ -310,7 +310,7 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
                 geo_path=None, parts=None, variants=None,
                 tex_dir=None, cleanup=False, settings=None, thumb=False,
                 two_sided=False, force_proxy=False, proxy_base=None,
-                nome_asset=None,
+                nome_asset=None, geo_variants=None,
                 thumb_cfg=None):
     """Monta um componente para `asset` e (opcionalmente) escreve o USD.
 
@@ -485,10 +485,35 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     # texturas aparece na malha (no Maxtree metade dos IDs nao aparece).
     subsets = _subset_names(cg, res)
 
+    # -- variantes de GEOMETRIA (setup do Component Builder que o Matheus
+    # trouxe: um componentgeometry por objeto do arquivo, todos num
+    # componentgeometryvariants -> UM USD com variantSet 'geo'). O primeiro
+    # objeto ja' e' o cg montado acima; os outros sao COPIAS dele (mesma
+    # rede de branches/unit/center), so' trocando o blast keep_* para o
+    # objeto da vez. O nome da variante e' o nome do no' ($OS, medido em
+    # geovariantname), entao o no' se chama como o objeto.
+    geo_in = cg
+    if geo_variants and len(geo_variants) > 1:
+        cg.setName(_naming.usd_prim_name(geo_variants[0]), unique_name=True)
+        cgs = [cg]
+        for obj in geo_variants[1:]:
+            copia = hou.copyNodesTo([cg], net)[0]
+            copia.setName(_naming.usd_prim_name(obj), unique_name=True)
+            for n in copia.node("sopnet/geo").children():
+                if n.type().name() == "blast" and n.name().startswith("keep_"):
+                    n.parm("group").set("@name=%s*" % obj)
+            cgs.append(copia)
+        cgv = net.createNode("componentgeometryvariants", "variants")
+        res.nodes["componentgeometryvariants"] = cgv
+        res.variant_set = "geo"
+        geo_in = cgv
+    else:
+        cgs = None
+
     # -- variantes de material (esquema KB3D_Converter_2.0) ---------------
     if variants:
         res.variant_set = "mtl"    # p/ a Asset Gallery abrir um tile por variante
-        tail_lop = cg
+        tail_lop = geo_in
         for var_nome, var_parts in variants:
             ml_v, ligadas = _matlib(net, var_nome, var_parts, subsets,
                                     profile, asset, renderers, disp_scale,
@@ -587,19 +612,41 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     res.nodes["materiallibrary"] = ml
 
     # -- componentmaterial: bind explicito por parte ----------------------
-    cm = net.createNode("componentmaterial", "assign")
-    cm.setInput(0, cg)
-    cm.setInput(1, ml)
-    # o componentmaterial SEMPRE autora o bind dentro de uma variante
-    # (medido: variantname VAZIO perde o bind -- render cinza, o bug que o
-    # Matheus pegou). Sem toggle para desligar, o nome vira 'default'
-    # em vez do nome do no ('assign').
-    cm.parm("variantname").set("default")
-    # padroes em _bind_parts (unico lugar): cobrem malha plana E aninhada
-    # em /geo/render quando ha branches de proxy/simproxy
-    _bind_parts(cm, res.parts_bound, single,
-                tem_branches=quer_proxy or quer_sim)
-    res.nodes["componentmaterial"] = cm
+    if cgs:
+        # variantes de geometria: o bind tem que ir ANTES do
+        # componentgeometryvariants, um componentmaterial por variante --
+        # MEDIDO: um so' depois do variants autora caminhos concretos da
+        # variante ativa e as outras cinco saiam sem material. E liga
+        # TODAS as partes com textura, nao so' as do primeiro objeto
+        # (Leaf_02 existe na palmeira 03 e nao na 01); padrao que nao
+        # casa e' inofensivo.
+        todas = [_naming.usd_prim_name(pt) for pt in partes_asset]
+        cm = None
+        for k, c in enumerate(cgs):
+            cmk = net.createNode("componentmaterial", "assign_%d" % (k + 1))
+            cmk.setInput(0, c)
+            cmk.setInput(1, ml)
+            cmk.parm("variantname").set("default")
+            _bind_parts(cmk, todas, single,
+                        tem_branches=quer_proxy or quer_sim)
+            geo_in.setInput(k, cmk)
+            cm = cm or cmk
+        res.nodes["componentmaterial"] = cm
+        cm = geo_in            # o output pendura no variants
+    else:
+        cm = net.createNode("componentmaterial", "assign")
+        cm.setInput(0, geo_in)
+        cm.setInput(1, ml)
+        # o componentmaterial SEMPRE autora o bind dentro de uma variante
+        # (medido: variantname VAZIO perde o bind -- render cinza, o bug
+        # que o Matheus pegou). Sem toggle para desligar, o nome vira
+        # 'default' em vez do nome do no ('assign').
+        cm.parm("variantname").set("default")
+        # padroes em _bind_parts (unico lugar): cobrem malha plana E
+        # aninhada em /geo/render quando ha branches de proxy/simproxy
+        _bind_parts(cm, res.parts_bound, single,
+                    tem_branches=quer_proxy or quer_sim)
+        res.nodes["componentmaterial"] = cm
 
     # -- saida ------------------------------------------------------------
     prim = _naming.usd_prim_name(nome)

@@ -297,6 +297,17 @@ class Panel(QtWidgets.QWidget):
             "lado do fbx e, no build seguinte, entram como um File so'")
         fS.addRow("Proxy setup", self.cbProxy)
 
+        # arquivo com VARIOS objetos: um asset por objeto (padrao) ou UM
+        # asset com variantSet 'geo' (setup Component Builder que o
+        # Matheus trouxe -- Flower Perenial). Default OFF.
+        self.ckGeoVar = QtWidgets.QCheckBox("Geo variants (one asset per file)")
+        self.ckGeoVar.setToolTip(
+            "Num fbx com varios objetos, monta UM asset com uma variante "
+            "de geometria por objeto (componentgeometryvariants), em vez "
+            "de um asset por objeto")
+        self.ckGeoVar.setChecked(False)
+        fS.addRow(self.ckGeoVar)
+
         # a escala vem diferente por biblioteca (KitBash em cm = 0.01,
         # Maxtree ja em metros = 1); 0 = usa a do perfil
         self.spUnit = spin(0.01)
@@ -680,10 +691,16 @@ class Panel(QtWidgets.QWidget):
                 else:
                     self._diz("PROCESSING FILE: %s (%d assets)"
                               % (nome_arq, len(tops)))
+                if self.ckGeoVar.isChecked() and len(tops) > 1:
+                    # um asset so', com o nome do arquivo, e os objetos
+                    # como variantes de geometria
+                    alvos.append((f, tops[0], partes_f, None,
+                                  os.path.splitext(nome_arq)[0], tops))
+                    continue
                 for top in tops:
                     alvos.append((f, top, partes_f,
                                   top if len(tops) > 1 else None,
-                                  None))
+                                  None, None))
         elif self._modo == "variacoes":
             perfil = profiles.custom(base_key, **over)
             sel = [i.text() for i in self.lista.selectedItems()]
@@ -696,7 +713,7 @@ class Panel(QtWidgets.QWidget):
                 # nome do componente sem ligar o blast: o arquivo da Var ja'
                 # tem so' aquela planta
                 alvos.append((geo_v, None, None, None,
-                              "%s_%s" % (self._asset.name, v)))
+                              "%s_%s" % (self._asset.name, v), None))
         elif self._modo == "objetos":
             perfil = profiles.custom(base_key, **over)
             sel = [i.text() for i in self.lista.selectedItems()]
@@ -705,10 +722,10 @@ class Panel(QtWidgets.QWidget):
                 return
             varios = self.lista.count() > 1
             alvos = [(None, nome, None, nome if varios else None,
-                      None) for nome in sel]
+                      None, None) for nome in sel]
         else:
             perfil = profiles.custom(base_key, **over)
-            alvos = [(None, None, None, None, None)]
+            alvos = [(None, None, None, None, None, None)]
 
         self._builds = []
         t = log.Tempo()
@@ -716,7 +733,7 @@ class Panel(QtWidgets.QWidget):
                   + "-" * 10)
         with hou.InterruptableOperation("USD_Builder_Asset build",
                                         open_interrupt_dialog=True) as op:
-            for i, (geo, alvo, partes, pbase, nome_a) in enumerate(
+            for i, (geo, alvo, partes, pbase, nome_a, gvars) in enumerate(
                     alvos):
                 op.updateProgress(float(i) / max(1, len(alvos)))
                 try:
@@ -728,7 +745,8 @@ class Panel(QtWidgets.QWidget):
                         settings=settings, thumb_cfg=thumb_cfg,
                         two_sided=self.ckTwoSided.isChecked(),
                         force_proxy=self.ckForce.isChecked(),
-                        proxy_base=pbase, nome_asset=nome_a)
+                        proxy_base=pbase, nome_asset=nome_a,
+                        geo_variants=gvars)
                     self._builds.append(res)
                     self._diz("✓ Building Asset SubNet: %s ........... %d/%d"
                               % (res.asset_name, i + 1, len(alvos)))
