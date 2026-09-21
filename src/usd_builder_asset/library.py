@@ -369,6 +369,11 @@ def scan(root, tex_dir=None):
         _sobe_por_texturas(a)
     if tex_dir:
         _texturas_indicadas(a, tex_dir)
+    # planta se decide pelo que se ACHOU, nao so' pelos arquivos da pasta:
+    # no Maxtree Vol 148 as texturas moram um nivel acima (achadas subindo
+    # a arvore) e a fern saia 'planta: nao' com translucency nos papeis --
+    # o caminho de folha (SSS/transmit) nem entrava
+    a.plant = a.plant or "translucency" in a.roles()
 
     if not a.geometry:
         a.avisos.append("nenhuma geometria na pasta")

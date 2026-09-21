@@ -1151,3 +1151,23 @@ primeira planta da lista (Brahea) para todas. parts_for_file agora, sem
 (MT_PM_V148_Acrocomia_aculeata_01 -> ..._Leaf_01, ..._Trunk_01): 9 partes
 proprias; Post Apocalypse continua None -> atlas. Conferido pela janela:
 '6 assets, 9 own texture parts', nenhum Brahea na matlib.
+
+## Planta pelo que se achou + V-Ray 7.10 sem translucency_color (2026-09-21)
+
+1. "tem transmission mas nao montou como ele; era plant e nao
+   identificou": a.plant era calculado com os arquivos da PASTA (so' fbx
+   no Vol 148) antes de _sobe_por_texturas -- as texturas moram um nivel
+   acima. Agora, depois de coletar, a.plant = a.plant or 'translucency'
+   in a.roles(). V148 -> planta: sim; CP_Vehicles segue nao.
+2. Setup do Matheus no V-Ray da versao SEM mascara de cor (7.10/H21),
+   copiado das telas dele para build_vray, so' no ramo sem o input
+   translucency_color:
+     Type SSS (translucency='6'), Method Directional
+     (translucency_surfaceLighting='0'), Radius = fog_color 1 1 1,
+     Scale (cm) = fog_mult 1, Color = translucency_color HSV(84,0.781,0.5)
+     = (0.3438, 0.5, 0.1095) fixa, mapa de translucency entrando como
+     AMOUNT por TexRemap 0.2..1 (translucency_amount conectado), e
+     glossiness_remap 0.2..0.9. fog_color_tex nao e' mais ligado.
+   O ramo 7.00 (H20.5, com translucency_color conectavel) ficou como era.
+   Conferido no Zea/H21: Leaf_02 Type=6 Method=0 cor (0.344,0.5,0.11)
+   amount<-translucency_remap 0.2..1, gloss 0.2..0.9; Trunk_01 sem SSS.

@@ -344,19 +344,36 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         # thin-walled SSS, refract=1 deixava a folha vitrea/transparente
         if "opacity" in maps:
             w.set(brdf, "opacity_mode", "1")      # Clip
-        w.set(brdf, "translucency_amount", s["subsurface"])
-        if "translucency" in maps:
-            # MEDIDO entre builds do vfh: o V-Ray 7.00 (Houdini 20.5)
-            # expoe o input translucency_color; o 7.10/Update 1 (Houdini
-            # 21.0) removeu -- sobra fog_color_tex. Usamos o que o build
-            # atual oferecer, na ordem certa.
-            alvo_cor = ("translucency_color"
-                        if "translucency_color" in brdf.inputNames()
-                        else "fog_color_tex")
-            w.connect(brdf, alvo_cor,
-                      cc("translucency",
-                         tex("translucency", maps["translucency"],
-                             cor=True)), "out_color")
+        # MEDIDO entre builds do vfh: o V-Ray 7.00 (Houdini 20.5) expoe o
+        # input translucency_color; o 7.10/Update 1 (Houdini 21.0) removeu.
+        if "translucency_color" in brdf.inputNames():
+            w.set(brdf, "translucency_amount", s["subsurface"])
+            if "translucency" in maps:
+                w.connect(brdf, "translucency_color",
+                          cc("translucency",
+                             tex("translucency", maps["translucency"],
+                                 cor=True)), "out_color")
+        else:
+            # setup do Matheus para a versao SEM mascara de cor (2026-09-21):
+            # Type SSS, Method Directional, Radius 1 1 1, Scale 1 cm, COR
+            # fixa verde HSV(84, 0.781, 0.5) e o mapa de translucency
+            # entrando como AMOUNT por um TexRemap 0.2..1 (Amount fica
+            # conectado, nao escalar). glossiness_remap 0.2..0.9.
+            w.set(brdf, "translucency_surfaceLighting", "0")   # Directional
+            w.set(brdf, "translucency_color", (0.3438, 0.5, 0.1095, 1.0))
+            w.set(brdf, "fog_color", (1.0, 1.0, 1.0, 1.0))      # Radius
+            w.set(brdf, "fog_mult", 1.0)                        # Scale (cm)
+            if "translucency" in maps:
+                tr = remap("translucency",
+                           tex("translucency", maps["translucency"]))
+                w.set(tr, "output_min", 0.2)
+                w.set(tr, "output_max", 1.0)
+                w.connect(brdf, "translucency_amount", tr, "value")
+            else:
+                w.set(brdf, "translucency_amount", s["subsurface"])
+            if "glossiness" in maps and rough_src is not None:
+                w.set(rough_src, "output_min", 0.2)
+                w.set(rough_src, "output_max", 0.9)
 
     if s["basecolor_gamma"] != 1.0:
         w.warn("basecolor_gamma custom nao aplicado em V-Ray (BitmapBuffer "
