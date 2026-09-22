@@ -1171,3 +1171,24 @@ proprias; Post Apocalypse continua None -> atlas. Conferido pela janela:
    O ramo 7.00 (H20.5, com translucency_color conectavel) ficou como era.
    Conferido no Zea/H21: Leaf_02 Type=6 Method=0 cor (0.344,0.5,0.11)
    amount<-translucency_remap 0.2..1, gloss 0.2..0.9; Trunk_01 sem SSS.
+
+## leaf_controls: um null na matlib para as folhas do V-Ray (2026-09-21)
+
+Pedido: "cria um null no material library para controlar o
+glossiness_remap output min/max; color translucency + translucency_remap
+min/max; basecolor_cc; isso somente para leaf".
+
+mat_extra._controles_folha(parent): null 'leaf_controls' criado na
+primeira folha do build (um por materiallibrary), com spare parms
+gloss_min/max (0.2/0.9), transl_color (HSV 84/.781/.5), transl_min/max
+(0.2/1), cc_saturation, cc_hue_shift, cc_hue_tint, cc_tint_strength,
+cc_brightness, cc_contrast (defaults do V-Ray ColorCorrection). Nos
+vray_<folha> os parms apontam por expressao ch("../../leaf_controls/..").
+Somente no ramo de folha (plant + translucency/eh_folha); Petiole, Thorn
+e Trunk continuam com valores literais. O ramo 7.00 (translucency_color
+conectado) recebe gloss + basecolor_cc; cor/remap da translucency so' no
+7.10. Conferido no Vol 148/H21: 1 null, 3 folhas seguindo (mexi
+gloss_max/saturation/transl_color e as tres mudaram), Petiole sem expr.
+
+Nota: a pasta de teste MaxToLama/Testes/v04/MT_PM_V93_Zea_mays_01_04
+nao existe mais -- os testes de folha passaram a usar o Vol 148.

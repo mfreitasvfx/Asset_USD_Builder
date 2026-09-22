@@ -205,6 +205,53 @@ def build_renderman(parent, name, maps, plant=False, disp_scale=0.01,
     return sub
 
 
+def _controles_folha(parent):
+    """UM null 'leaf_controls' por materiallibrary (pedido do Matheus,
+    2026-09-21): os remaps/colorcorrect das FOLHAS no V-Ray apontam para
+    ele por expressao, entao gloss, translucency e basecolor de todas as
+    folhas do asset se ajustam num lugar so'. Cria na primeira folha."""
+    n = parent.node("leaf_controls")
+    if n is not None:
+        return n
+    n = parent.createNode("null", "leaf_controls")
+    n.setColor(hou.Color(0.5, 0.7, 0.3))
+    g = n.parmTemplateGroup()
+    F = hou.FloatParmTemplate
+    for pt in (
+        F("gloss_min", "Glossiness Out Min", 1, default_value=(0.2,),
+          min=0.0, max=1.0),
+        F("gloss_max", "Glossiness Out Max", 1, default_value=(0.9,),
+          min=0.0, max=1.0),
+        F("transl_color", "Translucency Color", 3,
+          default_value=(0.3438, 0.5, 0.1095), look=hou.parmLook.ColorSquare,
+          naming_scheme=hou.parmNamingScheme.RGBA),
+        F("transl_min", "Translucency Out Min", 1, default_value=(0.2,),
+          min=0.0, max=1.0),
+        F("transl_max", "Translucency Out Max", 1, default_value=(1.0,),
+          min=0.0, max=1.0),
+        F("cc_saturation", "BaseColor Saturation", 1, default_value=(0.0,),
+          min=-1.0, max=1.0),
+        F("cc_hue_shift", "BaseColor Hue Shift", 1, default_value=(0.0,),
+          min=-1.0, max=1.0),
+        F("cc_hue_tint", "BaseColor Hue Tint", 3, default_value=(1.0, 1.0, 1.0),
+          look=hou.parmLook.ColorSquare, naming_scheme=hou.parmNamingScheme.RGBA),
+        F("cc_tint_strength", "BaseColor Tint Strength", 1,
+          default_value=(0.0,), min=0.0, max=1.0),
+        F("cc_brightness", "BaseColor Brightness", 1, default_value=(0.0,),
+          min=-1.0, max=1.0),
+        F("cc_contrast", "BaseColor Contrast", 1, default_value=(1.0,),
+          min=0.0, max=2.0),
+    ):
+        g.append(pt)
+    n.setParmTemplateGroup(g)
+    return n
+
+
+def _ch(parm, nome):
+    # os nos ficam dentro do vray_<folha>, o null e' irmao do builder
+    parm.setExpression('ch("../../leaf_controls/%s")' % nome)
+
+
 def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
                settings=None):
     from .materials import _cfg
@@ -252,10 +299,11 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
         w.connect(n, "input_value", t, "intensity")
         return n                       # sai em 'value'
 
+    base_cc = None
     if "basecolor" in maps:
-        w.connect(brdf, "diffuse",
-                  cc("basecolor", tex("basecolor", maps["basecolor"],
-                                      cor=True)), "out_color")
+        base_cc = cc("basecolor", tex("basecolor", maps["basecolor"],
+                                      cor=True))
+        w.connect(brdf, "diffuse", base_cc, "out_color")
     if "roughness" in maps or "glossiness" in maps:
         # Jonas Noell (video das folhas): reflexao em BRANCO PURO + mapa
         # de roughness -- o default preto do VRayMtl = specular nenhum
@@ -360,20 +408,35 @@ def build_vray(parent, name, maps, plant=False, disp_scale=0.01, w=None,
             # entrando como AMOUNT por um TexRemap 0.2..1 (Amount fica
             # conectado, nao escalar). glossiness_remap 0.2..0.9.
             w.set(brdf, "translucency_surfaceLighting", "0")   # Directional
-            w.set(brdf, "translucency_color", (0.3438, 0.5, 0.1095, 1.0))
             w.set(brdf, "fog_color", (1.0, 1.0, 1.0, 1.0))      # Radius
             w.set(brdf, "fog_mult", 1.0)                        # Scale (cm)
+            ctl = _controles_folha(parent)
+            for c in "rgb":
+                _ch(brdf.parm("translucency_color" + c), "transl_color" + c)
             if "translucency" in maps:
                 tr = remap("translucency",
                            tex("translucency", maps["translucency"]))
-                w.set(tr, "output_min", 0.2)
-                w.set(tr, "output_max", 1.0)
+                _ch(tr.parm("output_min"), "transl_min")
+                _ch(tr.parm("output_max"), "transl_max")
                 w.connect(brdf, "translucency_amount", tr, "value")
             else:
                 w.set(brdf, "translucency_amount", s["subsurface"])
-            if "glossiness" in maps and rough_src is not None:
-                w.set(rough_src, "output_min", 0.2)
-                w.set(rough_src, "output_max", 0.9)
+
+        # controles de FOLHA centralizados no null da matlib (pedido do
+        # Matheus): glossiness_remap e basecolor_cc por expressao
+        ctl = _controles_folha(parent)
+        if "glossiness" in maps and rough_src is not None:
+            _ch(rough_src.parm("output_min"), "gloss_min")
+            _ch(rough_src.parm("output_max"), "gloss_max")
+        if base_cc is not None:
+            for pn, cn in (("saturation", "cc_saturation"),
+                           ("hue_shift", "cc_hue_shift"),
+                           ("tint_strength", "cc_tint_strength"),
+                           ("brightness", "cc_brightness"),
+                           ("contrast", "cc_contrast")):
+                _ch(base_cc.parm(pn), cn)
+            for c in "rgb":
+                _ch(base_cc.parm("hue_tint" + c), "cc_hue_tint" + c)
 
     if s["basecolor_gamma"] != 1.0:
         w.warn("basecolor_gamma custom nao aplicado em V-Ray (BitmapBuffer "
