@@ -1192,3 +1192,60 @@ gloss_max/saturation/transl_color e as tres mudaram), Petiole sem expr.
 
 Nota: a pasta de teste MaxToLama/Testes/v04/MT_PM_V93_Zea_mays_01_04
 nao existe mais -- os testes de folha passaram a usar o Vol 148.
+
+## Lote: pasta de .max -> um FBX por arquivo (2026-09-21, noite)
+
+Pedido: "um plugin do max para exportar fbx [da pasta MT_PM_V93] ... quero o
+display de uma lista".
+
+- `batch.py` (sem UI): `list_max_files`, `preview_of` (o .jpg ao lado),
+  `target_of`, `export_files(paths, settings, on_progress)`. Abre cada .max
+  com `loadMaxFile useFileUnits:true quiet:true`, roda o MESMO
+  `exporter.export`, segue no erro. Forca selection_only=False,
+  one_asset_per_object=False, asset_name="" -- as prefs da janela principal
+  nao vazam. Escreve `<destino>/_usd_builder_asset_lote.json`.
+- `ui/batch_window.py`: pasta de origem, QListWidget com checkbox + thumb do
+  preview, filtro por nome, Todos/Nenhum/Inverter (so' no visivel), destino,
+  "Ver o que vai sair", "Exportar marcados" com QProgressBar, confirmacao
+  antes (abrir o .max descarta a cena atual). Pasta de origem lembrada em
+  `Settings.batch_source_dir` (campo novo; a janela principal ignora).
+- `install/usd_builder_asset_batch.ms` abre a janela; `tools/batch_smoketest.py`
+  e' o teste pelo 3dsmaxbatch (lista + janela + export real dos N primeiros).
+
+Medido (Python do Max 2027 + pymxs falso, Qt platform `windows`): 132 .max
+listados, thumbs carregam, filtro "allium" = 9, export de 3 com 1 falha
+simulada -> 2 ok / 1 erro / lote continua, relatorio escrito.
+NAO medido: o export de verdade dentro do Max -- o `3dsmaxbatch` imprime o
+cabecalho e nunca lanca o 3dsmax.exe enquanto ha' sessao interativa aberta
+(duas do Matheus abertas; esperei 11 min). Rodar o smoketest com o Max
+fechado, ou abrir a janela no Max e exportar 2 marcados.
+
+Armadilha: o PySide6 do Python do Max nao tem o plugin `offscreen`
+(QApplication morre com exit 127, sem mensagem). Fora do 3dsmaxbatch, usar
+QT_QPA_PLATFORM=windows.
+
+## Build em contexto SOP: nos comuns, sem subnet (2026-09-25)
+
+Pedido: "export em sop context que exporta do mesmo jeito que o
+megascan, mas em vez de criar um subnet ele cria um node comum,
+identificando o contexto aberto se e' em sop ou lops".
+
+  - A cadeia de geometria saiu do build_asset para _rede_geometria()
+    (fbx_in -> [unpack .abc] -> [keep/clean] -> center_to_origin ->
+    convert_units -> default + branches com rop_fbx/File pronto). Ela
+    exige tres nos default/proxy/simproxy no parent: em LOP sao os
+    outputs do componentgeometry, em SOP viram NULLS com as cores do
+    Component Builder.
+  - builder.build_sop(asset, profile, parent_sop, ...): monta isso
+    direto no SOP, mais uma matnet 'mtl' ao lado com os MESMOS builders
+    de material (sao VOPs, valem em /mat) e um wrangle assign_materials
+    que troca o shop_materialpath do fbx (so' o nome) pelo caminho do no
+    na matnet -- o Material SOP faria o mesmo, por grupo.
+  - Janela: _contexto_sop() le hou.ui.paneTabOfType(NetworkEditor).pwd();
+    se o childTypeCategory e' Sop, o BUILD chama build_sop (log "context:
+    SOP /obj/x") e o EXPORT aperta os rop_fbx (proxy/simproxy); senao
+    continua o subnet em /stage. Nada de checkbox: o contexto decide.
+  - Conferido no Zea/H21: 20 nos no /obj/zea_sop, 12 materiais na
+    matnet, shop_materialpath resolvendo para nos existentes, proxy 238
+    prims / simproxy 5082, rops gravando em <dir>/proxy|simproxy/; o
+    build LOP do mesmo asset segue com 18 nos no sopnet.

@@ -491,6 +491,18 @@ class Panel(QtWidgets.QWidget):
         combo.setCurrentText(atual)
         combo.blockSignals(False)
 
+    def _contexto_sop(self):
+        """O SOP aberto no editor de rede, ou None (contexto LOP/outro).
+        Pedido do Matheus: em SOP o build cria nos comuns ali, sem subnet."""
+        try:
+            pane = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
+            alvo = pane.pwd() if pane else None
+            if alvo is not None and                     alvo.childTypeCategory() == hou.sopNodeTypeCategory():
+                return alvo
+        except Exception:
+            pass
+        return None
+
     def _texto(self, campo):
         return (campo.currentText() if isinstance(campo, QtWidgets.QComboBox)
                 else campo.text()).strip()
@@ -733,10 +745,28 @@ class Panel(QtWidgets.QWidget):
                   + "-" * 10)
         with hou.InterruptableOperation("USD_Builder_Asset build",
                                         open_interrupt_dialog=True) as op:
+            ctx_sop = self._contexto_sop()
+            if ctx_sop is not None:
+                self._diz("context: SOP %s -- nodes go straight into it"
+                          % ctx_sop.path())
             for i, (geo, alvo, partes, pbase, nome_a, gvars) in enumerate(
                     alvos):
                 op.updateProgress(float(i) / max(1, len(alvos)))
                 try:
+                    if ctx_sop is not None:
+                        res = builder.build_sop(
+                            self._asset, perfil, ctx_sop, asset_name=alvo,
+                            geo_path=geo, parts=partes, renderers=renderers,
+                            disp_scale=self.spDisp.value(), settings=settings,
+                            force_proxy=self.ckForce.isChecked(),
+                            proxy_base=pbase, nome_asset=nome_a,
+                            two_sided=self.ckTwoSided.isChecked())
+                        self._builds.append(res)
+                        self._diz("✓ Building SOP network: %s ........... %d/%d"
+                                  % (res.asset_name, i + 1, len(alvos)))
+                        for av in res.avisos:
+                            self._diz("   ! " + av)
+                        continue
                     res = builder.build_asset(
                         self._asset, perfil, out_dir=out,
                         asset_name=alvo, renderers=renderers, write=False,
@@ -830,6 +860,20 @@ class Panel(QtWidgets.QWidget):
         """
         _reload_core()
         from usd_builder_asset import gallery, log
+        sops = [r for r in self._builds if r.nodes.get("rops")]
+        if sops:
+            # contexto SOP: o export sao os rop_fbx de proxy/simproxy
+            self._diz("-" * 10 + " START EXPORTING (SOP rop_fbx) " + "-" * 10)
+            for r in sops:
+                for rop in r.nodes["rops"]:
+                    try:
+                        rop.parm("execute").pressButton()
+                        self._diz("✓ %s -> %s" % (rop.name(),
+                                                  rop.parm("sopoutput").eval()))
+                    except Exception:
+                        self._diz(traceback.format_exc())
+            self._diz("-" * 10 + " FINISHED EXPORTING " + "-" * 10)
+            return
         vivos = [r for r in self._builds
                  if r.nodes.get("componentoutput") is not None]
         if not vivos:

@@ -304,6 +304,146 @@ def _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos, res,
                  nome_base)
 
 
+def _rede_geometria(sop, geo_path, nome, asset_name, profile, res,
+                    force_proxy=False, proxy_base=None):
+    """A rede SOP do asset: fbx_in -> [keep/clean] -> center_to_origin ->
+    convert_units -> default, mais os branches proxy/simproxy. `sop`
+    precisa ter tres nos chamados default/proxy/simproxy (os outputs do
+    componentgeometry em LOP, ou nulls no contexto SOP -- build_sop)."""
+    fnode = _fbx.load_sop(sop, geo_path)
+    tail = fnode
+
+    if str(geo_path).lower().endswith(".abc"):
+        # o File SOP le Alembic PACKADO: a saida e' 1 prim AlembicRef sem
+        # atributo nenhum (nem name, nem shop_materialpath). Sem 'name' o
+        # componentgeometry autora /ASSET/mesh_0,1,2 IRMAOS de /ASSET/geo,
+        # e bind no USD so' desce pela subarvore -- o asset saia cinza nos
+        # quatro renderizadores. Medido no 3d_building_wmfiaaldw: com o
+        # unpack vira /ASSET/geo/shape + GeomSubset, e o bind resolve.
+        # Metade da biblioteca 3d do Megascans so' tem .abc.
+        up = sop.createNode("unpack", "unpack_abc")
+        up.setInput(0, fnode)
+        tail = up
+
+    if asset_name is not None:
+        # so' as prims deste objeto (KitBash: varios assets no arquivo)
+        blast = sop.createNode("blast", "keep_" + _fbx.material_key(nome))
+        blast.setInput(0, fnode)
+        blast.parm("group").set("@name=%s*" % asset_name)
+        blast.parm("grouptype").set(4)      # primitives
+        blast.parm("negate").set(1)         # manter, nao deletar
+        tail = blast
+
+        # nome hierarquico ('X_grp/X_Main') vira nome de peca limpo
+        wr = sop.createNode("attribwrangle", "clean_piece_names")
+        wr.setInput(0, tail)
+        wr.parm("class").set(1)
+        wr.parm("snippet").set(
+            'string p[] = split(s@name, "/"); s@name = p[len(p)-1];')
+        tail = wr
+
+    # ---- padrao Rebelway do component builder -------------------------
+    # (RBL_Component_Builder_Template: default + proxy + simproxy)
+    # center_to_origin e convert_units ficam SEMPRE na rede ("todos devem
+    # ter, ate porque a escala vem diferente" -- Matheus): o perfil so'
+    # define os VALORES; neutros (justify None / scale 1) quando o perfil
+    # nao pede, prontos para ajustar a mao.
+    # Ordem: centralizar primeiro, escala depois (escala na origem
+    # preserva centro e chao).
+    ms = sop.createNode("matchsize", "center_to_origin")
+    ms.setInput(0, tail)
+    if getattr(profile, "center", False):
+        # peca de catalogo senta na origem: centra XZ, apoia no chao (min
+        # Y). doscale=0 -- centralizar nunca pode reescalar o asset.
+        ms.parm("justify_x").set(2)   # center   (menu medido)
+        ms.parm("justify_y").set(1)   # min = chao
+        ms.parm("justify_z").set(2)
+    else:
+        for eixo in ("justify_x", "justify_y", "justify_z"):
+            ms.parm(eixo).set(0)      # None = neutro
+    tail = ms
+
+    escala = float(getattr(profile, "unit_scale", 1.0) or 1.0)
+    xf = sop.createNode("xform", "convert_units")
+    xf.setInput(0, tail)
+    xf.parm("scale").set(escala)      # 1.0 = neutro
+    tail = xf
+
+    sop.node("default").setInput(0, tail)
+
+    quer_proxy = getattr(profile, "proxy", False)
+    quer_sim = getattr(profile, "simproxy", False)
+    if quer_proxy or quer_sim:
+        estilo = getattr(profile, "proxy_style", "vdb")
+        estilo = estilo if estilo in ("lowres", "vdb", "bounds") else "vdb"
+        # ja' gravados ao lado do fonte? entao so' carrega -- a menos que
+        # o Force esteja ligado ("para caso eu queira fazer um novo")
+        prontos = ({} if force_proxy
+                   else _lib.proxy_prontos(geo_path, proxy_base))
+        _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos,
+                  res, proxy_base)
+    # nos criados por codigo nascem empilhados; arruma como na GUI
+    sop.layoutChildren()
+    return tail
+
+
+def build_sop(asset, profile, parent, asset_name=None, geo_path=None,
+              parts=None, renderers=("karma",), disp_scale=0.01,
+              settings=None, force_proxy=False, proxy_base=None,
+              nome_asset=None, two_sided=False):
+    """O mesmo asset, mas em CONTEXTO SOP (pedido do Matheus): nos comuns
+    dentro do geo aberto, sem subnet. Nulls default/proxy/simproxy fazem
+    as vezes dos outputs; os materiais vao numa matnet 'mtl' ao lado e o
+    shop_materialpath da malha passa a apontar para eles."""
+    res = Result()
+    nome = nome_asset or asset_name or asset.name
+    res.asset_name = nome
+    partes_asset = parts if parts is not None else asset.parts
+    if two_sided:
+        partes_asset = _funde_verso(partes_asset)
+    if geo_path is None:
+        geo_path = asset.default_geo
+    if not geo_path:
+        res.warn("asset sem geometria; nada a montar")
+        return res
+    for saida, cor in (("default", (0.616, 0.871, 0.769)),
+                       ("proxy", (1.0, 0.976, 0.666)),
+                       ("simproxy", (0.996, 0.682, 0.682))):
+        n = parent.node(saida) or parent.createNode("null", saida)
+        n.setColor(hou.Color(*cor))
+    tail = _rede_geometria(parent, geo_path, nome, asset_name, profile, res,
+                           force_proxy, proxy_base)
+    res.nodes["default"] = parent.node("default")
+    res.nodes["rops"] = [n for n in parent.children()
+                         if n.type().name() == "rop_fbx"]
+
+    # materiais: matnet ao lado, mesmos builders (VOPs valem em /mat)
+    mt = parent.node("mtl") or parent.createNode("matnet", "mtl")
+    plant = profile.plant_workflow and asset.plant
+    finais = []
+    for parte in partes_asset:
+        nome_p = _naming.usd_prim_name(parte)
+        node, avisos = _mats.build_material(
+            mt, nome_p, partes_asset.get(parte), renderers=renderers,
+            plant=plant, disp_scale=disp_scale, settings=settings)
+        res.avisos.extend(avisos)
+        finais.append(nome_p)
+        res.parts_bound.append(nome_p)
+    mt.layoutChildren()
+    res.nodes["matnet"] = mt
+    # shop_materialpath do fbx e' so' o nome do material; vira o caminho
+    # completo do no na matnet (o Material SOP faria o mesmo, por grupo)
+    wr = parent.createNode("attribwrangle", "assign_materials")
+    wr.setInput(0, tail)
+    wr.parm("class").set(1)
+    wr.parm("snippet").set(
+        'string p[] = split(s@shop_materialpath, "/"); '
+        's@shop_materialpath = "%s/" + p[len(p)-1];' % mt.path())
+    parent.node("default").setInput(0, wr)
+    parent.layoutChildren()
+    return res
+
+
 def build_asset(asset, profile, out_dir=None, asset_name=None,
                 renderers=("karma", "arnold", "renderman", "vray"), parent=None,
                 lod=None, write=True, disp_scale=0.01,
@@ -402,80 +542,10 @@ def build_asset(asset, profile, out_dir=None, asset_name=None,
     cg = net.createNode("componentgeometry", "geo")
     cg.setColor(hou.Color(1.0, 1.0, 0.5))           # cor do HDA p/ geo
     sop = cg.node("sopnet/geo")
-    fnode = _fbx.load_sop(sop, geo_path)
-    tail = fnode
-
-    if str(geo_path).lower().endswith(".abc"):
-        # o File SOP le Alembic PACKADO: a saida e' 1 prim AlembicRef sem
-        # atributo nenhum (nem name, nem shop_materialpath). Sem 'name' o
-        # componentgeometry autora /ASSET/mesh_0,1,2 IRMAOS de /ASSET/geo,
-        # e bind no USD so' desce pela subarvore -- o asset saia cinza nos
-        # quatro renderizadores. Medido no 3d_building_wmfiaaldw: com o
-        # unpack vira /ASSET/geo/shape + GeomSubset, e o bind resolve.
-        # Metade da biblioteca 3d do Megascans so' tem .abc.
-        up = sop.createNode("unpack", "unpack_abc")
-        up.setInput(0, fnode)
-        tail = up
-
-    if asset_name is not None:
-        # so' as prims deste objeto (KitBash: varios assets no arquivo)
-        blast = sop.createNode("blast", "keep_" + _fbx.material_key(nome))
-        blast.setInput(0, fnode)
-        blast.parm("group").set("@name=%s*" % asset_name)
-        blast.parm("grouptype").set(4)      # primitives
-        blast.parm("negate").set(1)         # manter, nao deletar
-        tail = blast
-
-        # nome hierarquico ('X_grp/X_Main') vira nome de peca limpo
-        wr = sop.createNode("attribwrangle", "clean_piece_names")
-        wr.setInput(0, tail)
-        wr.parm("class").set(1)
-        wr.parm("snippet").set(
-            'string p[] = split(s@name, "/"); s@name = p[len(p)-1];')
-        tail = wr
-
-    # ---- padrao Rebelway do component builder -------------------------
-    # (RBL_Component_Builder_Template: default + proxy + simproxy)
-    # center_to_origin e convert_units ficam SEMPRE na rede ("todos devem
-    # ter, ate porque a escala vem diferente" -- Matheus): o perfil so'
-    # define os VALORES; neutros (justify None / scale 1) quando o perfil
-    # nao pede, prontos para ajustar a mao.
-    # Ordem: centralizar primeiro, escala depois (escala na origem
-    # preserva centro e chao).
-    ms = sop.createNode("matchsize", "center_to_origin")
-    ms.setInput(0, tail)
-    if getattr(profile, "center", False):
-        # peca de catalogo senta na origem: centra XZ, apoia no chao (min
-        # Y). doscale=0 -- centralizar nunca pode reescalar o asset.
-        ms.parm("justify_x").set(2)   # center   (menu medido)
-        ms.parm("justify_y").set(1)   # min = chao
-        ms.parm("justify_z").set(2)
-    else:
-        for eixo in ("justify_x", "justify_y", "justify_z"):
-            ms.parm(eixo).set(0)      # None = neutro
-    tail = ms
-
-    escala = float(getattr(profile, "unit_scale", 1.0) or 1.0)
-    xf = sop.createNode("xform", "convert_units")
-    xf.setInput(0, tail)
-    xf.parm("scale").set(escala)      # 1.0 = neutro
-    tail = xf
-
-    sop.node("default").setInput(0, tail)
-
+    _rede_geometria(sop, geo_path, nome, asset_name, profile, res,
+                    force_proxy, proxy_base)
     quer_proxy = getattr(profile, "proxy", False)
     quer_sim = getattr(profile, "simproxy", False)
-    if quer_proxy or quer_sim:
-        estilo = getattr(profile, "proxy_style", "vdb")
-        estilo = estilo if estilo in ("lowres", "vdb", "bounds") else "vdb"
-        # ja' gravados ao lado do fonte? entao so' carrega -- a menos que
-        # o Force esteja ligado ("para caso eu queira fazer um novo")
-        prontos = ({} if force_proxy
-                   else _lib.proxy_prontos(geo_path, proxy_base))
-        _branches(sop, tail, estilo, quer_proxy, quer_sim, prontos,
-                  res, proxy_base)
-    # nos criados por codigo nascem empilhados; arruma como na GUI
-    sop.layoutChildren()
     cg.parm("partitionattribs").set("shop_materialpath")
     cg.parm("prefixpartitionsubsets").set(0)
     res.nodes["componentgeometry"] = cg
