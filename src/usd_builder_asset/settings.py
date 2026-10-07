@@ -48,6 +48,9 @@ class Settings(object):
         # extras --------------------------------------------------------
         ("collect_textures", True, "Copiar texturas para a pasta do asset"),
         ("write_report", True, "Escrever relatorio .json ao lado"),
+
+        # lote (ui/batch_window) ----------------------------------------
+        ("batch_source_dir", "", "Pasta com os .max do lote"),
     ]
 
     def __init__(self, **kw):

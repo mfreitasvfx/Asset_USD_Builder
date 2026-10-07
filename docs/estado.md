@@ -1249,3 +1249,10 @@ identificando o contexto aberto se e' em sop ou lops".
     matnet, shop_materialpath resolvendo para nos existentes, proxy 238
     prims / simproxy 5082, rops gravando em <dir>/proxy|simproxy/; o
     build LOP do mesmo asset segue com 18 nos no sopnet.
+
+## 2026-09-26 — botão Cache_hython na shelf USD_Builder
+Ferramenta externa ao projeto, mora em `C:\dev\hou_batch_cache` (shelf_tool.py
+na GUI, hython_cache.py no hython). Grava o File Cache/ROP selecionado fora
+da GUI e opcionalmente fecha o Houdini. Só o `<tool>` e o `<memberTool>` estão
+em install/usd_builder_asset.shelf; a shelf viva em Documents/houdini21.0 foi
+editada igual.

@@ -15,7 +15,15 @@
     <script scriptType="python"><![CDATA[exec(open(r"C:\dev\USD_Builder_Asset\install\houdini_reload.py").read())]]></script>
   </tool>
 
+  <tool name="hython_cache" label="Cache_hython" icon="SOP_filecache">
+    <helpText><![CDATA[Grava o File Cache / ROP selecionado em hython, fora da GUI.
+Salva a cena, abre um console com o hython rodando o cache e,
+se voce escolher, fecha este Houdini. Log fica ao lado do .hip.]]></helpText>
+    <script scriptType="python"><![CDATA[exec(open(r"C:\dev\hou_batch_cache\shelf_tool.py").read())]]></script>
+  </tool>
+
   <toolshelf name="usd_builder" label="USD_Builder">
     <memberTool name="usd_builder_asset"/>
+    <memberTool name="hython_cache"/>
   </toolshelf>
 </shelfDocument>

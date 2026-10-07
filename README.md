@@ -126,6 +126,28 @@ avisa que, sem elas na pasta, o HDA acha o FBX e não monta material nenhum.
 Defaults do FBX: **Y-up** e **centímetros**. São os dois que fazem o asset
 chegar deitado ou 100× fora de escala no Solaris.
 
+## Lote: uma pasta de .max, um FBX por arquivo
+
+Para bibliotecas em que cada `.max` é um asset (Maxtree: 132 arquivos numa
+pasta, com o `.jpg` de preview ao lado). Abre a janela do lote no Max:
+
+```
+fileIn @"C:\dev\USD_Builder_Asset\install\usd_builder_asset_batch.ms"
+```
+
+Aponte a pasta, a lista mostra os `.max` com o preview; marque os que quer
+(filtro por nome, Todos/Nenhum/Inverter agem só no que o filtro deixa ver),
+escolha o destino e **Exportar marcados**. Cada arquivo é aberto na sessão
+(a cena atual é descartada — a janela avisa antes), exportado como
+`<destino>/<nome do arquivo>/<nome>_High.fbx` e o lote segue para o próximo;
+erro num arquivo não para os outros. Eixo, unidades e cópia de texturas são
+as prefs da janela principal. O resumo fica em
+`<destino>/_usd_builder_asset_lote.json`.
+
+A lógica mora em [`batch.py`](src/usd_builder_asset/batch.py), sem UI;
+`tools/batch_smoketest.py` exercita lista + janela offscreen + export real
+dos N primeiros arquivos pelo `3dsmaxbatch`.
+
 ## Rodar sem a janela
 
 A janela não contém regra nenhuma — ela lê e escreve um `Settings` e chama
