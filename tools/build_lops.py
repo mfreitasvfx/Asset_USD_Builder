@@ -8,7 +8,7 @@ Nada de reiniciar Houdini; a sessao aberta usa install/houdini_reload.py.
 import os
 import sys
 
-sys.path.insert(0, r"C:/dev/USD_Builder_Asset/src")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))  # Linux/Windows
 
 from usd_builder_asset import library, profiles           # noqa: E402
 from usd_builder_asset.lops import builder                # noqa: E402

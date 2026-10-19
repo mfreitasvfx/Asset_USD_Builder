@@ -9,7 +9,7 @@ clicar em nada -- a janela nao pode ser o unico jeito de rodar.
 import os
 import sys
 
-sys.path.insert(0, r"C:/dev/USD_Builder_Asset/src")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))  # Linux/Windows
 
 from usd_builder_asset.settings import Settings          # noqa: E402
 from usd_builder_asset import exporter                   # noqa: E402

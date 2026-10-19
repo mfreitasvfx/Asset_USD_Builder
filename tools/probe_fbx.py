@@ -17,7 +17,7 @@ import sys
 
 import hou
 
-sys.path.insert(0, r"C:/dev/USD_Builder_Asset/src")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))  # Linux/Windows
 from usd_builder_asset import library  # noqa: E402
 
 

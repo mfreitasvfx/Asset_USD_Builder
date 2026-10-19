@@ -3,9 +3,12 @@
 Abre a JANELA do usd_builder_asset. Rode de novo a vontade: recarrega os modulos
 editados no VS Code e reabre -- sem reiniciar o Houdini.
 """
+import os
 import sys
 
-p = r"C:/dev/USD_Builder_Asset/src"
+# Linux/Mac: $MFX_DEV/USD_Builder_Asset/src ; Windows: C:/dev/USD_Builder_Asset/src
+_dev = hou.getenv("MFX_DEV") or os.environ.get("MFX_DEV")
+p = (os.path.join(_dev, "USD_Builder_Asset", "src") if _dev else r"C:/dev/USD_Builder_Asset/src").replace("\\", "/")
 if p not in sys.path:
     sys.path.insert(0, p)
 for m in [k for k in list(sys.modules) if k.startswith("usd_builder_asset")]:
