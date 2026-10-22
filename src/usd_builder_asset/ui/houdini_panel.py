@@ -575,6 +575,12 @@ class Panel(QtWidgets.QWidget):
         except Exception:
             d = QtWidgets.QFileDialog.getExistingDirectory(
                 self, "Folder", inicio)
+        finally:
+            # o dialogo modal do Houdini derruba/minimiza o painel (KWin,
+            # 2026-10-22): volta com ele na frente assim que fecha
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
         d = (d or "").rstrip("/")
         if d:
             d = d.replace("\\", "/")
