@@ -387,14 +387,39 @@ def _rede_geometria(sop, geo_path, nome, asset_name, profile, res,
     return tail
 
 
-def build_sop(asset, profile, parent, asset_name=None, geo_path=None,
-              parts=None, renderers=("karma",), disp_scale=0.01,
-              settings=None, force_proxy=False, proxy_base=None,
-              nome_asset=None, two_sided=False):
-    """O mesmo asset, mas em CONTEXTO SOP (pedido do Matheus): nos comuns
-    dentro do geo aberto, sem subnet. Nulls default/proxy/simproxy fazem
-    as vezes dos outputs; os materiais vao numa matnet 'mtl' ao lado e o
-    shop_materialpath da malha passa a apontar para eles."""
+def _nome_livre(parent, nome):
+    """Nome sem colisao, com dedup explicito (_1, _2...): o auto-rename do
+    Houdini incrementa o digito final e 'Zea_01_04' viraria 'Zea_01_05',
+    nome de OUTRO asset real (armadilha medida no subnet LOP)."""
+    if parent.node(nome) is None:
+        return nome
+    i = 1
+    while parent.node("%s_%d" % (nome, i)) is not None:
+        i += 1
+    return "%s_%d" % (nome, i)
+
+
+def build_sop(asset, profile, parent, modo="geo", asset_name=None,
+              geo_path=None, parts=None, renderers=("karma",),
+              disp_scale=0.01, settings=None, force_proxy=False,
+              proxy_base=None, nome_asset=None, two_sided=False):
+    """O mesmo asset em NIVEL SOP (aba SOP LEVEL), em containers:
+
+        <geo>/
+            geometry          subnet SOP: fbx_in -> [unpack] -> [split/
+                              clean] -> center_to_origin -> convert_units
+                              -> output 'default' (+ proxy/simproxy)
+            mtl               matnet: os MESMOS builders de material
+            assign_materials  wrangle: shop_materialpath -> no na matnet
+            default           null de saida (verde do Component Builder)
+
+    modo "geo":    `parent` e' /obj (ou None): nasce UM geo com o nome do
+                   asset e os containers dentro dele.
+    modo "inside": `parent` e' o SOP aberto: os containers entram ali com
+                   o prefixo '<asset>_' -- varios assets convivem.
+    Pedido do Matheus (2026-10-22): "cada node tem que ter seu material
+    container com os nodes dentro; a geometria a mesma coisa, com escalar,
+    split e centralizar dentro"."""
     res = Result()
     nome = nome_asset or asset_name or asset.name
     res.asset_name = nome
@@ -406,41 +431,72 @@ def build_sop(asset, profile, parent, asset_name=None, geo_path=None,
     if not geo_path:
         res.warn("asset sem geometria; nada a montar")
         return res
-    for saida, cor in (("default", (0.616, 0.871, 0.769)),
-                       ("proxy", (1.0, 0.976, 0.666)),
-                       ("simproxy", (0.996, 0.682, 0.682))):
-        n = parent.node(saida) or parent.createNode("null", saida)
-        n.setColor(hou.Color(*cor))
-    tail = _rede_geometria(parent, geo_path, nome, asset_name, profile, res,
-                           force_proxy, proxy_base)
-    res.nodes["default"] = parent.node("default")
-    res.nodes["rops"] = [n for n in parent.children()
+
+    if modo == "inside":
+        sop = parent
+        chave = _fbx.material_key(nome)
+        pref = chave + "_"
+        i = 0
+        while sop.node(pref + "geometry") is not None:   # rebuild: _1, _2
+            i += 1
+            pref = "%s_%d_" % (chave, i)
+    else:
+        obj = parent or hou.node("/obj")
+        sop = obj.createNode("geo", _nome_livre(obj, _fbx.material_key(nome)))
+        res.nodes["geo"] = sop
+        pref = ""
+
+    # ---- geometria: subnet com a cadeia dentro --------------------------
+    g = sop.createNode("subnet", pref + "geometry")
+    g.setColor(hou.Color(0.616, 0.871, 0.769))
+    for i, saida in enumerate(("default", "proxy", "simproxy")):
+        # outputs do subnet fazem as vezes dos do componentgeometry; proxy e
+        # simproxy so' existem quando o perfil pede os branches
+        if i and not getattr(profile, "proxy" if i == 1 else "simproxy",
+                             False):
+            continue
+        o = g.createNode("output", saida)
+        o.parm("outputidx").set(i)
+    _rede_geometria(g, geo_path, nome, asset_name, profile, res,
+                    force_proxy, proxy_base)
+    res.nodes["geometry"] = g
+    res.nodes["rops"] = [n for n in g.children()
                          if n.type().name() == "rop_fbx"]
 
-    # materiais: matnet ao lado, mesmos builders (VOPs valem em /mat)
-    mt = parent.node("mtl") or parent.createNode("matnet", "mtl")
+    # ---- materiais: matnet com os builders dentro -----------------------
+    mt = sop.createNode("matnet", pref + "mtl")
     plant = profile.plant_workflow and asset.plant
-    finais = []
+    itens = []
     for parte in partes_asset:
         nome_p = _naming.usd_prim_name(parte)
+        mapas = partes_asset.get(parte)
         node, avisos = _mats.build_material(
-            mt, nome_p, partes_asset.get(parte), renderers=renderers,
+            mt, nome_p, mapas, renderers=renderers,
             plant=plant, disp_scale=disp_scale, settings=settings)
         res.avisos.extend(avisos)
-        finais.append(nome_p)
+        itens.append((nome_p, mapas, plant))
         res.parts_bound.append(nome_p)
     mt.layoutChildren()
+    mt.setColor(hou.Color(0.5, 1.0, 0.5) if itens else hou.Color(1, 0, 0))
     res.nodes["matnet"] = mt
+    res.matlibs.append((mt, itens))     # UPDATE MATERIALS remonta daqui
+
+    # ---- assign + saida -------------------------------------------------
     # shop_materialpath do fbx e' so' o nome do material; vira o caminho
-    # completo do no na matnet (o Material SOP faria o mesmo, por grupo)
-    wr = parent.createNode("attribwrangle", "assign_materials")
-    wr.setInput(0, tail)
+    # completo do collect na matnet (o Material SOP faria o mesmo, por grupo)
+    wr = sop.createNode("attribwrangle", pref + "assign_materials")
+    wr.setInput(0, g, 0)
     wr.parm("class").set(1)
     wr.parm("snippet").set(
         'string p[] = split(s@shop_materialpath, "/"); '
         's@shop_materialpath = "%s/" + p[len(p)-1];' % mt.path())
-    parent.node("default").setInput(0, wr)
-    parent.layoutChildren()
+    out = sop.createNode("null", pref + "default")
+    out.setColor(hou.Color(0.616, 0.871, 0.769))
+    out.setInput(0, wr)
+    out.setDisplayFlag(True)
+    out.setRenderFlag(True)
+    res.nodes["default"] = out
+    sop.layoutChildren()
     return res
 
 
@@ -995,11 +1051,12 @@ def rebuild_materials(res, renderers, disp_scale=0.01, settings=None):
             finais.append(node)
         ml.layoutChildren()
         ml.setColor(hou.Color(0.5, 1.0, 0.5) if finais else hou.Color(1, 0, 0))
-        ml.parm("materials").set(len(finais))
-        for i, node in enumerate(finais, start=1):
-            ml.parm("matnode%d" % i).set(node.name())
-            ml.parm("matpath%d" % i).set(node.name())
-            if ml.parm("assign%d" % i) is not None:
-                ml.parm("assign%d" % i).set(0)
+        if ml.parm("materials") is not None:   # matnet (SOP) nao tem a lista
+            ml.parm("materials").set(len(finais))
+            for i, node in enumerate(finais, start=1):
+                ml.parm("matnode%d" % i).set(node.name())
+                ml.parm("matpath%d" % i).set(node.name())
+                if ml.parm("assign%d" % i) is not None:
+                    ml.parm("assign%d" % i).set(0)
         total += len(finais)
     return total

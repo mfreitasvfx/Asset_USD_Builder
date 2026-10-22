@@ -110,3 +110,19 @@ convert_units do builder — sem perfil por baixo.
       saíram com 0.01 estão 100x menores e precisam ser refeitos.
 - [ ] Maxtree/KitBash: continuam em 0.0100 (medido: soja 48 cm, set do
       KitBash 232 m) — nada deveria ter mudado.
+
+## SOP LEVEL (2026-10-22)
+
+Aba nova: BUILD SOP em geo novo (/obj/<asset>) ou dentro do geo aberto.
+Medido no hython 22: materiais ligados, Karma ROP renderizando textura.
+
+- [ ] **Viewport GL**: o Zea em /obj/<asset>/default mostra as texturas
+      (o GL lê o preview_<parte> pelo collect)? Se aparecer cinza, a
+      alternativa é apontar o shop_materialpath para o karma_<parte>.
+- [ ] **Karma 22 no viewport/ROP** com Two-Sided marcado: confira se o
+      verso das folhas aparece (o render headless avisou "Invalid shader
+      wire ... twosided/snippet", aviso que já existia no fluxo LOP).
+- [ ] **V-Ray no 21.0.512**: build com karma+vray marcados e render
+      (precisa da VPN fxphd para a licença).
+- [ ] **Inside**: dois assets no mesmo geo, cada um com seus 4 nós
+      prefixados — organização ok?

@@ -1256,3 +1256,47 @@ na GUI, hython_cache.py no hython). Grava o File Cache/ROP selecionado fora
 da GUI e opcionalmente fecha o Houdini. Só o `<tool>` e o `<memberTool>` estão
 em install/usd_builder_asset.shelf; a shelf viva em Documents/houdini21.0 foi
 editada igual.
+
+## Aba SOP LEVEL: containers por asset, em geo novo ou dentro do geo (2026-10-22)
+
+Pedido (Matheus, ja' no Linux): "continuar construindo em SOP level...
+uma aba SOP level, para construir no geo ou dentro do geo. Cada node tem
+que ter seu material container com os nodes dentro; a geometria a mesma
+coisa, com os nodes dentro de escalar, split e centralizar. Por enquanto
+nao mexer em proxy, focar na geometria e materiais."
+
+  - builder.build_sop(asset, profile, parent, modo="geo"|"inside", ...)
+    substitui o build_sop de 2026-09-25 (nos soltos no geo aberto). Agora
+    cada asset sao QUATRO nos:
+        geometry          subnet SOP: fbx_in -> [unpack] -> [keep/clean]
+                          -> center_to_origin -> convert_units -> output
+                          'default' (outputs proxy/simproxy so' nascem se
+                          o perfil pedir os branches)
+        mtl               matnet com os MESMOS builders (karma_/vray_/
+                          preview_ + collect <parte>, leaf_controls)
+        assign_materials  wrangle: shop_materialpath -> <mtl>/<parte>
+        default           null de saida, verde do Component Builder,
+                          display+render
+    modo "geo": nasce /obj/<asset> (dedup explicito _1, _2 -- a armadilha
+    do auto-rename). modo "inside": tudo dentro do SOP aberto com o
+    prefixo <asset>_ (rebuild vira <asset>_1_...).
+  - Matnet aninhado em matnet NAO existe (medido: "Invalid node type
+    name"); por isso o container de material e' o matnet do asset, nao
+    um por parte.
+  - rebuild_materials aceita o matnet (sem o multiparm 'materials'):
+    UPDATE MATERIALS vale para os builds SOP.
+  - Janela: aba SOP LEVEL (Target: New geo node / Inside the geo open in
+    the network editor + BUILD SOP). O BUILD da aba USD BUILDER voltou a
+    ser SEMPRE /stage -- a bifurcacao implicita pelo contexto do editor
+    de rede saiu (a aba e' explicita). _preparar() e' a leitura comum da
+    janela (perfil, alvos, renderers, settings) para os dois builds.
+    No SOP level os proxies ficam desligados (copia do perfil).
+  - Medido (hython 22.0.476, Zea): 12 materiais, 6 shop_materialpath do
+    fbx resolvendo para nos existentes, bbox 2.05 m de altura com 0.01;
+    Karma ROP de /out renderiza as texturas (folhas, caule, opacity) --
+    o SOP Import LOP headless NAO traduz material nenhum (nem um
+    Principled em /mat), entao a prova e' o ROP, nao o sopimport.
+    Houdini 21.0.512 + V-Ray 7.20: vray_vop_builder x12 no collect.
+  - Aviso pre-existente que aparece no render com Two-Sided: "Invalid
+    shader wire ... twosided/isconnected/snippet" (o translator do USD
+    nao leva os nos VEX do twosided do Karma). Nao e' desta aba.

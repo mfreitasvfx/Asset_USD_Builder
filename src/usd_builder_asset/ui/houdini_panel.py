@@ -239,6 +239,52 @@ class Panel(QtWidgets.QWidget):
         v1.addWidget(wrap3)
         aba(w1, "USD BUILDER")
 
+        # ============ aba SOP LEVEL ============
+        # pedido do Matheus (2026-10-22): a mesma montagem, em nivel SOP,
+        # com um container de geometria e um de materiais por asset
+        w3 = QtWidgets.QWidget()
+        v3 = QtWidgets.QVBoxLayout(w3)
+        gT = QtWidgets.QGroupBox("Target")
+        vT = QtWidgets.QVBoxLayout(gT)
+        self.rbSopGeo = QtWidgets.QRadioButton(
+            "New geo node in /obj (one per asset)")
+        self.rbSopGeo.setToolTip(
+            "Cria /obj/<asset> com os containers dentro")
+        self.rbSopInside = QtWidgets.QRadioButton(
+            "Inside the geo open in the network editor")
+        self.rbSopInside.setToolTip(
+            "Monta dentro do SOP aberto no editor de rede, com o prefixo "
+            "<asset>_ em cada container (varios assets convivem)")
+        self.rbSopGeo.setChecked(True)
+        vT.addWidget(self.rbSopGeo)
+        vT.addWidget(self.rbSopInside)
+        v3.addWidget(gT)
+
+        gE = QtWidgets.QGroupBox("What gets built")
+        vE = QtWidgets.QVBoxLayout(gE)
+        lbE = QtWidgets.QLabel(
+            "Source, Profile, the Objects list and Renderers come from the "
+            "USD BUILDER tab; Unit Scale, Two-Sided and the material "
+            "Settings apply too.\n\n"
+            "Per asset:\n"
+            "  geometry          subnet: fbx_in \u2192 split/clean \u2192 "
+            "center_to_origin \u2192 convert_units \u2192 default\n"
+            "  mtl               matnet with one material builder per part\n"
+            "  assign_materials  wrangle: shop_materialpath \u2192 mtl/<part>\n"
+            "  default           output null (display/render)\n\n"
+            "Proxy/simproxy are not built at SOP level for now. "
+            "UPDATE MATERIALS (Settings) also works on these builds.")
+        lbE.setWordWrap(True)
+        vE.addWidget(lbE)
+        v3.addWidget(gE)
+
+        self.btBuildSop = QtWidgets.QPushButton("BUILD SOP")
+        self.btBuildSop.setMinimumHeight(_S(34))
+        self.btBuildSop.clicked.connect(self._build_sop)
+        v3.addWidget(self.btBuildSop)
+        v3.addStretch(1)
+        aba(w3, "SOP LEVEL")
+
         # ============ aba SETTINGS ============
         w2 = QtWidgets.QWidget()
         v2 = QtWidgets.QVBoxLayout(w2)
@@ -620,12 +666,9 @@ class Panel(QtWidgets.QWidget):
                       % self._profile.label)
         self._diz("-" * 10 + " FINISHED SCANNING " + "-" * 10)
 
-    def _build(self):
-        """Etapa 2: monta a rede em /stage SEM escrever.
-
-        Da' para abrir o subnet (nome do asset) e mexer no que quiser
-        antes do export -- o pedido do Matheus: 'chegar e alterar'.
-        """
+    def _preparar(self):
+        """Le a janela: perfil, alvos, renderers, settings. Comum ao BUILD
+        em /stage e ao BUILD SOP. None = nada a fazer (ja' avisou no log)."""
         if self._asset is None:
             self._diz("run 1 — SCAN first.")
             return
@@ -739,34 +782,34 @@ class Panel(QtWidgets.QWidget):
             perfil = profiles.custom(base_key, **over)
             alvos = [(None, None, None, None, None, None)]
 
+        return dict(perfil=perfil, alvos=alvos, renderers=renderers,
+                    settings=settings, out=out, tex_dir=tex_dir,
+                    thumb_cfg=thumb_cfg)
+
+    def _build(self):
+        """Etapa 2: monta a rede em /stage SEM escrever.
+
+        Da' para abrir o subnet (nome do asset) e mexer no que quiser
+        antes do export -- o pedido do Matheus: 'chegar e alterar'.
+        """
+        prep = self._preparar()
+        if prep is None:
+            return
+        from usd_builder_asset import log
+        from usd_builder_asset.lops import builder
+        perfil, alvos = prep["perfil"], prep["alvos"]
+        renderers, settings = prep["renderers"], prep["settings"]
+        out, tex_dir, thumb_cfg = prep["out"], prep["tex_dir"], prep["thumb_cfg"]
         self._builds = []
         t = log.Tempo()
         self._diz("\n" + "-" * 10 + " START BUILDING ASSET SUBNETWORK "
                   + "-" * 10)
         with hou.InterruptableOperation("USD_Builder_Asset build",
                                         open_interrupt_dialog=True) as op:
-            ctx_sop = self._contexto_sop()
-            if ctx_sop is not None:
-                self._diz("context: SOP %s -- nodes go straight into it"
-                          % ctx_sop.path())
             for i, (geo, alvo, partes, pbase, nome_a, gvars) in enumerate(
                     alvos):
                 op.updateProgress(float(i) / max(1, len(alvos)))
                 try:
-                    if ctx_sop is not None:
-                        res = builder.build_sop(
-                            self._asset, perfil, ctx_sop, asset_name=alvo,
-                            geo_path=geo, parts=partes, renderers=renderers,
-                            disp_scale=self.spDisp.value(), settings=settings,
-                            force_proxy=self.ckForce.isChecked(),
-                            proxy_base=pbase, nome_asset=nome_a,
-                            two_sided=self.ckTwoSided.isChecked())
-                        self._builds.append(res)
-                        self._diz("✓ Building SOP network: %s ........... %d/%d"
-                                  % (res.asset_name, i + 1, len(alvos)))
-                        for av in res.avisos:
-                            self._diz("   ! " + av)
-                        continue
                     res = builder.build_asset(
                         self._asset, perfil, out_dir=out,
                         asset_name=alvo, renderers=renderers, write=False,
@@ -789,6 +832,66 @@ class Panel(QtWidgets.QWidget):
                   + "-" * 10)
         self._diz("Check/tweak the asset subnets in /stage "
                   "and press 3 — EXPORT USD's.")
+
+    def _build_sop(self):
+        """Aba SOP LEVEL: o asset em containers num geo novo em /obj ou
+        dentro do SOP aberto no editor de rede."""
+        prep = self._preparar()
+        if prep is None:
+            return
+        from usd_builder_asset import log
+        from usd_builder_asset.lops import builder
+        perfil, alvos = prep["perfil"], prep["alvos"]
+        renderers, settings = prep["renderers"], prep["settings"]
+        if self.rbSopInside.isChecked():
+            modo, pai = "inside", self._contexto_sop()
+            if pai is None:
+                self._diz("open a geo (SOP context) in the network editor "
+                          "first, or pick 'New geo node'.")
+                return
+        else:
+            modo, pai = "geo", None
+        # proxies ficam fora do SOP level por enquanto (pedido do Matheus)
+        perfil = self._perfil_sem_proxy(perfil)
+
+        self._builds = []
+        t = log.Tempo()
+        self._diz("\n" + "-" * 10 + " START BUILDING SOP LEVEL (%s) " % modo
+                  + "-" * 10)
+        with hou.InterruptableOperation("USD_Builder_Asset build SOP",
+                                        open_interrupt_dialog=True) as op:
+            for i, (geo, alvo, partes, pbase, nome_a, gvars) in enumerate(
+                    alvos):
+                op.updateProgress(float(i) / max(1, len(alvos)))
+                try:
+                    res = builder.build_sop(
+                        self._asset, perfil, pai, modo=modo, asset_name=alvo,
+                        geo_path=geo, parts=partes, renderers=renderers,
+                        disp_scale=self.spDisp.value(), settings=settings,
+                        proxy_base=pbase, nome_asset=nome_a,
+                        two_sided=self.ckTwoSided.isChecked())
+                    self._builds.append(res)
+                    onde = res.nodes.get("geo") or res.nodes.get("default")
+                    self._diz("✓ Building SOP: %s -> %s ........... %d/%d"
+                              % (res.asset_name,
+                                 onde.path() if onde else "?", i + 1,
+                                 len(alvos)))
+                    for av in res.avisos:
+                        self._diz("   ! " + av)
+                except Exception:
+                    self._diz(traceback.format_exc())
+        self._diz(t.build_time())
+        self._diz("-" * 10 + " FINISHED BUILDING SOP (%d) " % len(self._builds)
+                  + "-" * 10)
+
+    def _perfil_sem_proxy(self, perfil):
+        """Copia do perfil com proxy/simproxy desligados (Profile e' um
+        objeto simples; o original da janela fica como esta')."""
+        import copy
+        p2 = copy.copy(perfil)
+        p2.proxy = False
+        p2.simproxy = False
+        return p2
 
     def _update_materials(self):
         """Reconstroi so' os materiais (o UPDATE ALL SETTINGS do HDA).
