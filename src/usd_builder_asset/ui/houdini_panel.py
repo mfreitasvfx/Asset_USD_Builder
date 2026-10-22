@@ -562,8 +562,20 @@ class Panel(QtWidgets.QWidget):
             self._diz("folder does not exist: %r" % p)
 
     def _escolher(self, campo):
-        d = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Folder", self._texto(campo) or os.path.expanduser("~"))
+        """Navegador CLASSICO do Houdini (hou.ui.selectFile): da' para colar
+        o caminho no campo de cima -- o QFileDialog nao deixava (Matheus,
+        2026-10-22). Fallback no Qt so' sem hou.ui (teste offscreen)."""
+        inicio = self._texto(campo) or os.path.expanduser("~")
+        try:
+            d = hou.ui.selectFile(
+                start_directory=inicio.replace("\\", "/"),
+                title="Folder", file_type=hou.fileType.Directory,
+                chooser_mode=hou.fileChooserMode.Read)
+            d = hou.text.expandString(d) if d else ""
+        except Exception:
+            d = QtWidgets.QFileDialog.getExistingDirectory(
+                self, "Folder", inicio)
+        d = (d or "").rstrip("/")
         if d:
             d = d.replace("\\", "/")
             if isinstance(campo, QtWidgets.QComboBox):
