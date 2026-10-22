@@ -1300,3 +1300,20 @@ nao mexer em proxy, focar na geometria e materiais."
   - Aviso pre-existente que aparece no render com Two-Sided: "Invalid
     shader wire ... twosided/isconnected/snippet" (o translator do USD
     nao leva os nos VEX do twosided do Karma). Nao e' desta aba.
+
+## SOP level + V-Ray: o assign aponta para o vray_<parte>, nao o collect (2026-10-22, cont.)
+
+"testando o vray nao sai a textura no render". Causa medida: o plugin
+(strings do vray_for_houdini.so) so' resolve material por um
+vray_material_output -- o 'collect' do Houdini nao e' lido, a malha sai
+cinza. O LOP nao sofria porque la' o caminho e' o USD.
+
+  - build_sop(assign="auto"|"collect"|"vray_"|"renderman_"|"karma_"):
+    o wrangle assign_materials ganhou o parametro 'prefix' (menu); Auto =
+    "vray_" quando V-Ray esta marcado e carregado, senao "" (collect).
+    Trocar na GUI sem rebuild: e' so' mudar o 'prefix' do wrangle.
+  - Janela, aba SOP LEVEL: combo "Material assign" (Auto/collect/vray_/
+    renderman_/karma_).
+  - Medido no hython 21.0.512 + V-Ray 7.20 (VPN fxphd): 6 caminhos do
+    Zea resolvendo para vray_vop_builder e o vray_renderer headless
+    escrevendo o EXR com folhas texturizadas e opacity cortando.

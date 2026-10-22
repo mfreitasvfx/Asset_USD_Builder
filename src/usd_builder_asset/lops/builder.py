@@ -399,10 +399,30 @@ def _nome_livre(parent, nome):
     return "%s_%d" % (nome, i)
 
 
+# A quem o shop_materialpath aponta no SOP level. O 'collect' serve ao
+# Karma/Mantra/GL, mas o V-Ray NAO o aceita: o plugin procura um
+# vray_material_output (strings do vray_for_houdini.so, 2026-10-22 --
+# "testando o vray nao sai a textura no render"). Entao com V-Ray
+# marcado o assign vai direto ao vray_<parte>; os outros builders ficam
+# na matnet, e o parametro 'prefix' do wrangle troca a mao.
+ASSIGN = ("auto", "collect", "vray_", "renderman_", "karma_")
+
+
+def _prefixo_assign(assign, renderers):
+    if assign in (None, "auto"):
+        if "vray" in renderers:
+            from .mat_extra import vray_available
+            if vray_available():
+                return "vray_"
+        return ""
+    return "" if assign == "collect" else assign
+
+
 def build_sop(asset, profile, parent, modo="geo", asset_name=None,
               geo_path=None, parts=None, renderers=("karma",),
               disp_scale=0.01, settings=None, force_proxy=False,
-              proxy_base=None, nome_asset=None, two_sided=False):
+              proxy_base=None, nome_asset=None, two_sided=False,
+              assign="auto"):
     """O mesmo asset em NIVEL SOP (aba SOP LEVEL), em containers:
 
         <geo>/
@@ -487,9 +507,20 @@ def build_sop(asset, profile, parent, modo="geo", asset_name=None,
     wr = sop.createNode("attribwrangle", pref + "assign_materials")
     wr.setInput(0, g, 0)
     wr.parm("class").set(1)
+    # 'prefix' e' um parametro do wrangle: "" = collect (Karma/GL),
+    # "vray_" / "renderman_" / "karma_" = o builder daquele renderer
+    pt = hou.StringParmTemplate(
+        "prefix", "Material prefix", 1,
+        default_value=(_prefixo_assign(assign, renderers),),
+        menu_items=("", "vray_", "renderman_", "karma_"),
+        menu_labels=("collect (Karma / GL)", "vray_ builder",
+                     "renderman_ builder", "karma_ builder"),
+        menu_type=hou.menuType.StringReplace)
+    wr.addSpareParmTuple(pt)
     wr.parm("snippet").set(
         'string p[] = split(s@shop_materialpath, "/"); '
-        's@shop_materialpath = "%s/" + p[len(p)-1];' % mt.path())
+        's@shop_materialpath = "%s/" + chs("prefix") + p[len(p)-1];'
+        % mt.path())
     out = sop.createNode("null", pref + "default")
     out.setColor(hou.Color(0.616, 0.871, 0.769))
     out.setInput(0, wr)

@@ -272,11 +272,34 @@ class Panel(QtWidgets.QWidget):
             "  mtl               matnet with one material builder per part\n"
             "  assign_materials  wrangle: shop_materialpath \u2192 mtl/<part>\n"
             "  default           output null (display/render)\n\n"
+            "V-Ray reads only its own builder, so with V-Ray checked the "
+            "assign points to vray_<part> (Auto).\n"
             "Proxy/simproxy are not built at SOP level for now. "
             "UPDATE MATERIALS (Settings) also works on these builds.")
         lbE.setWordWrap(True)
         vE.addWidget(lbE)
         v3.addWidget(gE)
+
+        # a quem o shop_materialpath aponta (V-Ray nao le o collect)
+        fA = QtWidgets.QFormLayout()
+        self.cbSopAssign = QtWidgets.QComboBox()
+        for chave, rotulo in (
+                ("auto", "Auto \u2014 vray_ builder if V-Ray is checked, "
+                         "else collect"),
+                ("collect", "collect (Karma / GL preview)"),
+                ("vray_", "vray_ builder"),
+                ("renderman_", "renderman_ builder"),
+                ("karma_", "karma_ builder")):
+            self.cbSopAssign.addItem(rotulo, chave)
+        self.cbSopAssign.setToolTip(
+            "O V-Ray so' renderiza quando o shop_materialpath aponta direto "
+            "para o V-Ray Material Builder; o collect vale para Karma/GL. "
+            "Da' para trocar depois no parametro 'prefix' do wrangle "
+            "assign_materials")
+        fA.addRow("Material assign", self.cbSopAssign)
+        wrapA = QtWidgets.QWidget()
+        wrapA.setLayout(fA)
+        v3.addWidget(wrapA)
 
         self.btBuildSop = QtWidgets.QPushButton("BUILD SOP")
         self.btBuildSop.setMinimumHeight(_S(34))
@@ -887,7 +910,8 @@ class Panel(QtWidgets.QWidget):
                         geo_path=geo, parts=partes, renderers=renderers,
                         disp_scale=self.spDisp.value(), settings=settings,
                         proxy_base=pbase, nome_asset=nome_a,
-                        two_sided=self.ckTwoSided.isChecked())
+                        two_sided=self.ckTwoSided.isChecked(),
+                        assign=self.cbSopAssign.currentData())
                     self._builds.append(res)
                     onde = res.nodes.get("geo") or res.nodes.get("default")
                     self._diz("✓ Building SOP: %s -> %s ........... %d/%d"
