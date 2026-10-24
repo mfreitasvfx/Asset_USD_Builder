@@ -405,7 +405,11 @@ def _nome_livre(parent, nome):
 # "testando o vray nao sai a textura no render"). Entao com V-Ray
 # marcado o assign vai direto ao vray_<parte>; os outros builders ficam
 # na matnet, e o parametro 'prefix' do wrangle troca a mao.
-ASSIGN = ("auto", "collect", "vray_", "renderman_", "karma_")
+# O Arnold ROP e' igual: collect no shop_materialpath da' "[htoa.material]
+# Invalid shader path" e render magenta; arnold_<parte> renderiza
+# (medido H22.0.476 + HtoA 6.5.4, 2026-10-23). Luz tem que ser
+# arnold_light -- envlight/hlight nativos saem pretos no HtoA.
+ASSIGN = ("auto", "collect", "vray_", "arnold_", "renderman_", "karma_")
 
 
 def _prefixo_assign(assign, renderers):
@@ -414,6 +418,10 @@ def _prefixo_assign(assign, renderers):
             from .mat_extra import vray_available
             if vray_available():
                 return "vray_"
+        if "arnold" in renderers:
+            from .materials import arnold_available
+            if arnold_available():
+                return "arnold_"
         return ""
     return "" if assign == "collect" else assign
 
@@ -508,13 +516,15 @@ def build_sop(asset, profile, parent, modo="geo", asset_name=None,
     wr.setInput(0, g, 0)
     wr.parm("class").set(1)
     # 'prefix' e' um parametro do wrangle: "" = collect (Karma/GL),
-    # "vray_" / "renderman_" / "karma_" = o builder daquele renderer
+    # "vray_" / "arnold_" / "renderman_" / "karma_" = o builder daquele
+    # renderer
     pt = hou.StringParmTemplate(
         "prefix", "Material prefix", 1,
         default_value=(_prefixo_assign(assign, renderers),),
-        menu_items=("", "vray_", "renderman_", "karma_"),
+        menu_items=("", "vray_", "arnold_", "renderman_", "karma_"),
         menu_labels=("collect (Karma / GL)", "vray_ builder",
-                     "renderman_ builder", "karma_ builder"),
+                     "arnold_ builder", "renderman_ builder",
+                     "karma_ builder"),
         menu_type=hou.menuType.StringReplace)
     wr.addSpareParmTuple(pt)
     wr.parm("snippet").set(

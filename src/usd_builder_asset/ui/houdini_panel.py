@@ -272,8 +272,10 @@ class Panel(QtWidgets.QWidget):
             "  mtl               matnet with one material builder per part\n"
             "  assign_materials  wrangle: shop_materialpath \u2192 mtl/<part>\n"
             "  default           output null (display/render)\n\n"
-            "V-Ray reads only its own builder, so with V-Ray checked the "
-            "assign points to vray_<part> (Auto).\n"
+            "V-Ray and Arnold read only their own builder, so with one of "
+            "them checked the assign points to vray_<part> / arnold_<part> "
+            "(Auto). Arnold ROP also needs an arnold_light (native lights "
+            "render black).\n"
             "Proxy/simproxy are not built at SOP level for now. "
             "UPDATE MATERIALS (Settings) also works on these builds.")
         lbE.setWordWrap(True)
@@ -284,16 +286,18 @@ class Panel(QtWidgets.QWidget):
         fA = QtWidgets.QFormLayout()
         self.cbSopAssign = QtWidgets.QComboBox()
         for chave, rotulo in (
-                ("auto", "Auto \u2014 vray_ builder if V-Ray is checked, "
+                ("auto", "Auto \u2014 vray_ / arnold_ builder if checked, "
                          "else collect"),
                 ("collect", "collect (Karma / GL preview)"),
                 ("vray_", "vray_ builder"),
+                ("arnold_", "arnold_ builder"),
                 ("renderman_", "renderman_ builder"),
                 ("karma_", "karma_ builder")):
             self.cbSopAssign.addItem(rotulo, chave)
         self.cbSopAssign.setToolTip(
-            "O V-Ray so' renderiza quando o shop_materialpath aponta direto "
-            "para o V-Ray Material Builder; o collect vale para Karma/GL. "
+            "V-Ray e Arnold so' renderizam quando o shop_materialpath aponta "
+            "direto para o builder deles (vray_/arnold_<parte>); o collect "
+            "vale para Karma/GL. "
             "Da' para trocar depois no parametro 'prefix' do wrangle "
             "assign_materials")
         fA.addRow("Material assign", self.cbSopAssign)

@@ -1317,3 +1317,26 @@ cinza. O LOP nao sofria porque la' o caminho e' o USD.
   - Medido no hython 21.0.512 + V-Ray 7.20 (VPN fxphd): 6 caminhos do
     Zea resolvendo para vray_vop_builder e o vray_renderer headless
     escrevendo o EXR com folhas texturizadas e opacity cortando.
+
+## Arnold no Houdini 22.0.476 + HtoA 6.5.4.0 (2026-10-23)
+
+Pedido: "nossa ferramenta esta preparada para o arnold? acabei de instalar
+no 22 para testar". Medido com hython 22.0.476 + htoa-6.5.4.0_houdini-22.0.466:
+
+- LOP: build do Abies (5 partes) com karma+arnold em 8 s, zero avisos.
+  Material USD sai com outputs:arnold:surface + outputs:kma:surface +
+  outputs:surface (preview), os tres coexistem no collect.
+- Headless: o plugin USD do HtoA (dso/usd_plugins/ArnoldUsdBundle.so) so'
+  carrega com LD_LIBRARY_PATH=$HFS/dsolib -- depende de libpxr_garch, que
+  na GUI ja' esta' em memoria pelo GL. Sem isso o terminal arnold some do
+  USD e o husk diz "Unable to load render plugin: HdArnoldRendererPlugin".
+  Com a env certa o husk carrega o HdArnold mas devolve imagem zerada (sem
+  log do Arnold), tanto esfera quanto Abies; o mesmo USD renderiza no Karma.
+  Suspeita: HDK API mismatch (HtoA p/ 22.0.453, Houdini 22.0.475). Testar
+  na GUI (viewport Arnold); se falhar, Houdini 22.0.466 ao lado.
+- SOP: Arnold ROP NAO le o collect ("[htoa.material] Invalid shader path",
+  render magenta). Com shop_materialpath em arnold_<parte> renderiza com
+  textura e opacidade. Luz nativa (envlight/hlight) sai PRETA no HtoA; usar
+  arnold_light (skydome). Mudanca: ASSIGN ganhou "arnold_", Auto escolhe
+  vray_ > arnold_ > collect, menu do wrangle e combo da aba atualizados.
+- Arnold licenciou ("authorizing with license manager: user").
